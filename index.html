@@ -8,6 +8,8 @@
 :root[data-theme="dark"] { --bg:#141618; --paper:#1d2023; --fg:#e8e8e6; --muted:#9a9a96; --line:#4a4e52; --soft:#30343a; --booked:#5a5f64; --free:#262a2e; }
 * { box-sizing:border-box; }
 [hidden] { display:none !important; }
+.q { display:inline-block; font-size:10px; font-weight:700; border-radius:3px; padding:0 4px; margin-right:4px; color:#fff; vertical-align:1px; }
+.q1 { background:#b3261e; } .q2 { background:#2f6b3a; } .q3 { background:#a87400; } .q4 { background:#7d8185; } .qcell { min-height:120px; }
 .helpgrid { display:grid; grid-template-columns:210px 1fr; gap:12px; } .helptoc { align-self:start; position:sticky; top:70px; line-height:1.5; } .helptoc button { text-align:left; padding:3px 0; }
 .help .card { scroll-margin-top:70px; } .help p, .help li { line-height:1.55; } .help ul, .help ol { padding-left:20px; margin:6px 0; } .help code { font-size:12px; }
 @media (max-width:820px) { .helpgrid { grid-template-columns:1fr; } .helptoc { position:static; } }
@@ -77,7 +79,7 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo" title="Pušis prototype v9">🌲 Pušis <span class="m" style="font-size:10px">v9</span></span>
+ <span class="logo" title="Pušis prototype v10">🌲 Pušis <span class="m" style="font-size:10px">v10</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
@@ -300,7 +302,7 @@ const dayOfYear = s => Math.round((s2d(s) - new Date(s2d(s).getFullYear(), 0, 1)
 const dayName = s => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][s2d(s).getDay()]} ${s}`;
 const stamp = (d = new Date()) => `${d2s(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const hh = h => `${pad(Math.floor(h))}:${h % 1 ? '30' : '00'}`;
-const DEFAULTS = { dayStart: 8, dayEnd: 21, reviewDay: 5, flapsi: true, ledger: false }; // paper daily plan: 08–21; review day 5 = Friday (plan_v3 D3)
+const DEFAULTS = { dayStart: 8, dayEnd: 21, reviewDay: 5, flapsi: true, ledger: false, covey: false, urgentDays: 3 }; // paper daily plan: 08–21; review day 5 = Friday (plan_v3 D3)
 const set = () => ({ ...DEFAULTS, ...(S.settings || {}) });
 const win = () => [set().dayStart, set().dayEnd];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -347,7 +349,7 @@ const VIEWS = { goals: 'WHAT', areas: 'WHAT', today: 'WHEN', plan: 'WHEN', dont:
 function nav() {
   const t = (v, label) => `<button class="tab ${U.view === v ? 'on' : ''}" data-a="go" data-v="${v}">${label}</button>`;
   document.getElementById('nav').innerHTML =
-    `<span class="grp what"><i>WHAT</i>${t('goals', '🌈 Goals')}${t('areas', '🔑 Key areas')}</span>` +
+    `<span class="grp what"><i>WHAT</i>${t('goals', '🌈 Goals')}${t('areas', '🔑 Key areas')}${coveyOn() ? t('matrix', '🧭 Matrix') : ''}</span>` +
     `<span class="grp when"><i>WHEN</i>${t('today', '🕘 Today')}${t('plan', '🌙 Plan tomorrow')}${t('dont', '✋ Don\'t forget')}${ledgerOn() ? t('ledger', '📊 Balance') : ''}</span>` +
     `<span class="grp info"><i>INFO</i>${t('notes', '✏️ Notes')}${t('people', '📞 People')}${t('ref', 'ℹ️ Reference')}</span>`;
   const late = S.tasks.filter(t => openTask(t) && t.deadline && t.deadline < TODAY).length + S.acts.filter(a => !a.done && a.by && a.by < TODAY).length;
@@ -358,6 +360,38 @@ function render() { S.people ||= []; S.refs ||= []; nav(); document.getElementBy
 
 // ---------- views ----------
 const V = {};
+
+// ---------- Covey matrix lens: important × urgent, worked out from what Pušis already knows ----------
+// important = ! or linked to a signed goal; urgent = late or due within the "urgent" days (Settings)
+const coveyOn = () => !!set().covey;
+const QN = { 1: ['Q1', 'Important · urgent', 'Do now: crises, deadlines, pressing problems'], 2: ['Q2', 'Important · not urgent', 'Plan and protect: goals, prevention, planning, relationships, learning'],
+  3: ['Q3', 'Not important · urgent', 'Limit or delegate: interruptions, some calls, other people\'s urgencies'], 4: ['Q4', 'Not important · not urgent', 'Drop or postpone: trivia, busywork, time wasters'] };
+function quad(t, ref = TODAY) {
+  const imp = !!t.important || (!!t.goalId && goal(t.goalId)?.mark === 'committed');
+  const urg = !!t.deadline && t.deadline <= addDays(ref, +set().urgentDays);
+  return imp ? (urg ? 1 : 2) : (urg ? 3 : 4);
+}
+const qTag = (t, ref) => coveyOn() ? `<span class="q q${quad(t, ref)}" title="${QN[quad(t, ref)][1]}">${QN[quad(t, ref)][0]}</span>` : '';
+function quadTime(a, z) { // planned task blocks per quadrant (quadrant as seen on that day)
+  const m = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (const b of S.blocks) { const t = b.kind === 'planned' && task(b.taskId); if (!t || b.date < a || b.date > z || b.date > TODAY) continue; m[quad(t, b.date)] += Math.round((b.end - b.start) * 60); }
+  const tot = m[1] + m[2] + m[3] + m[4]; return { m, tot, q2: tot ? Math.round(100 * m[2] / tot) : null };
+}
+function quadCard(a, z, label) {
+  const { m, tot, q2 } = quadTime(a, z);
+  return `<div class="card"><h3>🧭 Covey quadrants <span class="m" style="text-transform:none;letter-spacing:0">${esc(label)} · planned task time</span></h3>
+    ${tot ? [1, 2, 3, 4].map(q => `<div class="row"><span><span class="q q${q}">${QN[q][0]}</span> ${QN[q][1]}</span><span>${fmtM(m[q])}</span></div>`).join('') +
+      `<div class="row"><b>Q2 share</b><b class="${q2 < 20 ? 'late' : ''}">${q2}%</b></div><div class="m">Covey: results come from Q2. If Q2 stays small, Q1 crises keep growing.</div>`
+    : '<div class="empty">No planned task blocks in this period yet (Plan tomorrow → give tasks a start time).</div>'}</div>`;
+}
+V.matrix = () => {
+  const open = S.tasks.filter(openTask), mon = addDays(TODAY, -((s2d(TODAY).getDay() + 6) % 7));
+  const cell = q => { const xs = open.filter(t => quad(t) === q).sort((x, y) => (x.deadline || '9999').localeCompare(y.deadline || '9999'));
+    return `<div class="card qcell" id="q${q}"><h3><span><span class="q q${q}">${QN[q][0]}</span> ${QN[q][1]}</span><span>${xs.length}</span></h3><div class="m" style="margin-bottom:6px">${QN[q][2]}</div>
+      ${xs.map(t => `<div class="row clk" data-a="taskEdit" data-id="${t.id}"><span class="grow"><span class="code">${tcode(t)}</span>${t.important ? '<span class="imp">!</span>' : ''}${esc(t.what)} <span class="m">${esc(goalLabel(t))}</span></span>${dueTag(t.deadline, TODAY)}</div>`).join('') || '<div class="empty">Nothing here.</div>'}</div>`; };
+  return `<h2>🧭 Matrix <span class="m">— Covey: important × urgent. Important = ! or a signed goal; urgent = due within ${set().urgentDays} days or late</span></h2>
+    <div class="grid2">${cell(1)}${cell(2)}${cell(3)}${cell(4)}</div><div style="margin-top:12px; max-width:640px">${quadCard(mon, addDays(mon, 6), 'this week')}</div>`;
+};
 
 // ---------- Time ledger lens (Lyubishchev): plan vs actual, lost time, balance, estimating accuracy ----------
 const LOST_WHY = ['waiting', 'interruptions', 'travel', 'empty meeting', 'unplanned request', 'tiredness', 'other'];
@@ -418,7 +452,7 @@ V.ledger = () => {
   <div class="card"><h3>🎯 Estimating accuracy</h3>
     ${fAll ? `<p style="margin:4px 0">Your tasks take <b>×${fAll.f.toFixed(2)}</b> of your estimate <span class="m">(all ${fAll.n} measured tasks)</span>.</p>` : '<div class="empty">Needs at least 3 finished tasks with an estimate and the time they really took.</div>'}
     ${fP ? `<p class="m" style="margin:4px 0">This ${kind}: ×${fP.f.toFixed(2)} (${fP.n} tasks)</p>` : ''}
-    ${done.filter(t => t.estimate && t.actual).map(t => `<div class="row"><span class="grow"><span class="code">${tcode(t)}</span>${esc(t.what)}</span><span class="m">${t.estimate} h → ${t.actual} h</span></div>`).join('')}</div></div></div>`;
+    ${done.filter(t => t.estimate && t.actual).map(t => `<div class="row"><span class="grow"><span class="code">${tcode(t)}</span>${esc(t.what)}</span><span class="m">${t.estimate} h → ${t.actual} h</span></div>`).join('')}</div>${coveyOn() ? quadCard(a, z, label) : ''}</div></div>`;
 };
 
 // ---------- Help (two parts: using the app, and the method behind it) ----------
@@ -477,6 +511,11 @@ const HELP = {
 <li><b>⏳ Lost time</b> on Today: minutes and why (waiting, interruptions, travel…). Nobody else sees it.</li>
 <li><b>Time spent</b>: when you tick a task done, Pušis asks how long it really took.</li>
 <li><b>📊 Balance</b> (WHEN tab): week, month or year. Plan vs actual per key area, share of time in key areas that serve goals, lost time by reason, and your <b>estimating factor</b> (×1.30 means tasks take 30% longer than you estimate). Plan tomorrow then warns you when the day is too full.</li></ul>`],
+    ['matrix', '🧭 Covey matrix', `
+<p>An optional lens: <b>⚙ → Planning → Covey matrix</b>. Pušis sorts every open task into four quadrants by itself, with nothing extra to type:</p>
+<ul><li><b>Important</b>: the task has <b>!</b>, or it serves a <b>signed</b> goal.</li>
+<li><b>Urgent</b>: it is late, or due within the number of days set in ⚙ (3 by default).</li></ul>
+<p>The <b>🧭 Matrix</b> tab shows the four quadrants (click a task to edit it) and this week's planned time per quadrant. Q1–Q4 tags appear on task sheets, Today and Plan tomorrow, and Plan tomorrow tells you when no Q2 task is picked. If the time ledger is on, 📊 Balance shows the Q2 share for any week, month or year.</p>`],
     ['keys', 'Shortcuts and status', `
 <ul><li><b>N</b>: capture · <b>Ctrl+Enter</b>: add a note · <b>Esc</b>: close a window.</li>
 <li><b>Flapsi n</b> (header): loose things, meaning notes in the inbox plus late tasks and activities. Green up to 7, amber 8–10, red over 10.</li>
@@ -528,6 +567,13 @@ const HELP = {
 <li><b>Every week</b>, on your review day: empty the inbox, check goals and key areas, place the elephant bites, plan the week.</li>
 <li><b>Every month and year</b>: look ahead; put fixed dates (birthdays, holidays, tax) in first.</li></ul>
 <p>Write "in pencil": plans change, and changing them is part of planning.</p>`],
+    ['covey', "Covey's time management matrix", `
+<p>Stephen R. Covey (<i>The 7 Habits of Highly Effective People</i>, <i>First Things First</i>) sorts all activities by two questions, an idea often traced back to Eisenhower: <b>is it important?</b> (does it serve my goals and roles?) and <b>is it urgent?</b> (does it demand attention now?).</p>
+<ul><li><b>Q1 important · urgent</b>: crises and deadlines. They must be done, but living here burns you out.</li>
+<li><b>Q2 important · not urgent</b>: planning, prevention, relationships, learning, goal work. This is where effectiveness comes from, and it is the first to be pushed aside.</li>
+<li><b>Q3 not important · urgent</b>: interruptions and other people's urgencies. They feel important only because they are loud.</li>
+<li><b>Q4 not important · not urgent</b>: trivia and time wasters.</li></ul>
+<p>Covey's advice: say no to Q3 and Q4, and protect time for Q2 first, the "big rocks" that go into the week before the sand. Over time Q2 work shrinks Q1, because fewer things turn into crises. The same idea runs through TMI (spend your <i>available</i> time on goal tasks, be a "development" person) and Lyubishchev (the share of main work).</p>`],
     ['lyubishchev', 'The Lyubishchev time ledger', `
 <p>The biologist A. A. Lyubishchev recorded every day, for 56 years, how much <b>net</b> time he spent on his main work, on other work, and what was lost and why. Each month he summed it up; each year he drew a balance.</p>
 <p>The effect: losses and their causes become visible, you learn to estimate any job in hours, and you can plan years ahead. G. Altshuller, the author of TRIZ, kept such accounts himself for about fifteen years. In a 1978 note for TRIZ courses he called the system demanding, because it only works when the records are honest, and a necessity for anyone doing creative work regularly.</p>
@@ -556,7 +602,9 @@ V.settings = () => {
     <div class="row"><span>Day ends</span>${sel('dayEnd', [16, 17, 18, 19, 20, 21, 22, 23, 24].map(h => [h, hh(h)]), st.dayEnd)}</div>
     <div class="row"><span>Weekly review day</span>${sel('reviewDay', [1, 2, 3, 4, 5, 6, 0].map(d => [d, WEEKDAYS[d]]), st.reviewDay)}</div>
     <div class="row"><span>Flapsi-Hapsi meter <span class="m">(loose things counter in the header)</span></span><input type="checkbox" data-c="setting" data-k="flapsi" ${st.flapsi ? 'checked' : ''}></div>
-    <div class="row"><span>Time ledger (Lyubishchev) <span class="m">(plan vs actual, lost time, 📊 Balance, estimating accuracy)</span></span><input type="checkbox" data-c="setting" data-k="ledger" ${st.ledger ? 'checked' : ''}></div></div>
+    <div class="row"><span>Time ledger (Lyubishchev) <span class="m">(plan vs actual, lost time, 📊 Balance, estimating accuracy)</span></span><input type="checkbox" data-c="setting" data-k="ledger" ${st.ledger ? 'checked' : ''}></div>
+    <div class="row"><span>Covey matrix <span class="m">(important × urgent quadrants, 🧭 Matrix, Q2 share)</span></span><input type="checkbox" data-c="setting" data-k="covey" ${st.covey ? 'checked' : ''}></div>
+    ${st.covey ? `<div class="row"><span>"Urgent" means due within</span>${sel('urgentDays', [1, 2, 3, 5, 7, 14].map(d => [d, d + (d === 1 ? ' day' : ' days')]), st.urgentDays)}</div>` : ''}</div>
   <div class="card"><h3>📁 Save to a file <span class="m" style="text-transform:none;letter-spacing:0">Chrome or Edge on a computer · no sign-in</span></h3>
     ${!FS.ok ? '<div class="empty">This browser cannot save to a file. Use Chrome or Edge on a computer, or Google Drive below.</div>'
       : FS.handle ? `<div class="row"><span>File <b>${esc(FS.handle.name)}</b> · ${pill('fpill')}</span><span><button data-a="fpill">sync now</button> <button data-a="fileStop">stop using</button></span></div>`
@@ -630,7 +678,7 @@ V.areas = () => {
     mid = `<div class="card"><div class="sheethead"><span>🔑 ${esc(a.name)} — task sheet</span><span># ${a.slot} <button class="link" style="color:#fff" data-a="areaEdit" data-slot="${a.slot}">edit area</button></span></div>
       ${a.desc ? `<div class="m">${esc(a.desc)}${a.goalIds.length ? ' · serves ' + a.goalIds.map(g => goal(g)).filter(Boolean).map(g => esc(g.title)).join(', ') : ''}</div>` : ''}
       <table class="sheet"><tr><th>#</th><th>!</th><th>Task</th><th>Who</th><th>⏰</th><th>Goal</th><th>✓</th></tr>
-      ${ts.map(t => `<tr class="clk ${sel && sel.id === t.id ? 'sel' : ''}" data-a="pickTask" data-id="${t.id}"><td class="code">${tcode(t)}</td><td class="imp">${t.important ? '!' : ''}</td><td class="${t.status === 'done' ? 'done' : ''}">${esc(t.what)}${linkTag(t.link)}</td><td>${esc(t.who || 'me')}</td><td>${dueTag(t.deadline, TODAY)}</td><td class="m">${esc(goalLabel(t))}</td><td>${t.kind === 'ongoing' ? '<span class="m" title="ongoing task">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${t.id}" ${t.status === 'done' ? 'checked' : ''}>`}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No tasks yet.</td></tr>'}
+      ${ts.map(t => `<tr class="clk ${sel && sel.id === t.id ? 'sel' : ''}" data-a="pickTask" data-id="${t.id}"><td class="code">${tcode(t)}</td><td class="imp">${t.important ? '!' : ''}</td><td class="${t.status === 'done' ? 'done' : ''}">${t.status === 'open' ? qTag(t) : ''}${esc(t.what)}${linkTag(t.link)}</td><td>${esc(t.who || 'me')}</td><td>${dueTag(t.deadline, TODAY)}</td><td class="m">${esc(goalLabel(t))}</td><td>${t.kind === 'ongoing' ? '<span class="m" title="ongoing task">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${t.id}" ${t.status === 'done' ? 'checked' : ''}>`}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No tasks yet.</td></tr>'}
       </table><div class="btns" style="justify-content:flex-start"><button class="pri" data-a="taskEdit">+ task</button>${sel ? `<button data-a="taskEdit" data-id="${sel.id}">edit ${tcode(sel)}</button>` : ''}</div></div>`;
     if (sel && sel.area === a.slot) {
       const as = S.acts.filter(x => x.taskId === sel.id).sort((x, y) => x.n - y.n);
@@ -658,7 +706,7 @@ function hoursCol(s) {
 }
 function listCard(title, items, kind, s) {
   const row = x => kind === 'task'
-    ? `<div class="row"><span class="grow ${x.status === 'done' ? 'done' : ''}"><span class="code">${tcode(x)}</span>${x.important ? '<span class="imp">!</span>' : ''}${esc(x.what)}${whoTag(x.who)}${linkTag(x.link)} ${dueTag(x.deadline, s)}</span>${x.kind === 'ongoing' ? '<span class="m">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${x.id}" ${x.status === 'done' ? 'checked' : ''}>`}</div>`
+    ? `<div class="row"><span class="grow ${x.status === 'done' ? 'done' : ''}"><span class="code">${tcode(x)}</span>${x.important ? '<span class="imp">!</span>' : ''}${x.status === 'open' ? qTag(x, s) : ''}${esc(x.what)}${whoTag(x.who)}${linkTag(x.link)} ${dueTag(x.deadline, s)}</span>${x.kind === 'ongoing' ? '<span class="m">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${x.id}" ${x.status === 'done' ? 'checked' : ''}>`}</div>`
     : `<div class="row"><span class="grow ${x.done ? 'done' : ''}">${{ do: '', call: '📞 ', email: '@ ' }[x.kind]}<span class="code">${acode(x)}</span>${esc(x.what)}${whoTag(x.who)}${linkTag(x.link)} ${dueTag(x.by, s)}</span><input type="checkbox" data-c="actDone" data-id="${x.id}" ${x.done ? 'checked' : ''}></div>`;
   return `<div class="card"><h3>${title}</h3>${items.map(row).join('') || '<div class="empty">Nothing.</div>'}</div>`;
 }
@@ -705,11 +753,13 @@ V.plan = () => {
   } else if (st === 4) {
     const cands = sortCandidates(S.tasks.filter(openTask), s);
     const hours = []; for (let h = win()[0]; h < win()[1]; h += 0.5) hours.push(h);
+    const q2 = coveyOn() ? d.tasks.map(task).filter(t => t && quad(t, s) === 2).length : null;
+    const q2note = q2 === null ? '' : `<div class="m" style="margin-bottom:6px">🧭 Q2 tasks picked: <b class="${q2 ? '' : 'late'}">${q2}</b>${q2 ? '' : ' (pick at least one important, not urgent task; that is where results come from)'}</div>`;
     const fx = ledgerOn() && estFactor(S.tasks), est = d.tasks.map(task).filter(Boolean).reduce((n, t) => n + (t.estimate || 0), 0);
     const warn = fx && est ? `<div class="m" style="margin-bottom:6px">Picked tasks: ${est} h by your estimate${fx.f > 1.05 ? `, probably <b class="${est * fx.f > availableH(s) ? 'late' : ''}">${(est * fx.f).toFixed(1)} h</b> (your estimating factor ×${fx.f.toFixed(2)})` : ''}.</div>` : '';
-    body = `<div class="grid2"><div class="card"><h3>Pick tasks for ${dayName(s)} <span>available ${fmtH(availableH(s))}</span></h3>${warn}
+    body = `<div class="grid2"><div class="card"><h3>Pick tasks for ${dayName(s)} <span>available ${fmtH(availableH(s))}</span></h3>${q2note}${warn}
       ${cands.map(t => { const on = d.tasks.includes(t.id), b = S.blocks.find(x => x.date === s && x.taskId === t.id);
-        return `<div class="row"><label class="grow" style="display:flex;gap:6px;align-items:baseline"><input type="checkbox" data-c="pick" data-id="${t.id}" ${on ? 'checked' : ''}><span><span class="code">${tcode(t)}</span>${t.important ? '<span class="imp">!</span>' : ''}${t.elephant ? '🐘 ' : ''}${esc(t.what)} <span class="m">${esc(goalLabel(t))} ${t.estimate ? '· ' + t.estimate + ' h' : ''}</span> ${dueTag(t.deadline, s)}</span></label>
+        return `<div class="row"><label class="grow" style="display:flex;gap:6px;align-items:baseline"><input type="checkbox" data-c="pick" data-id="${t.id}" ${on ? 'checked' : ''}><span><span class="code">${tcode(t)}</span>${t.important ? '<span class="imp">!</span>' : ''}${qTag(t, s)}${t.elephant ? '🐘 ' : ''}${esc(t.what)} <span class="m">${esc(goalLabel(t))} ${t.estimate ? '· ' + t.estimate + ' h' : ''}</span> ${dueTag(t.deadline, s)}</span></label>
           <select style="width:92px" data-c="pickTime" data-id="${t.id}" title="start time (places a block)"><option value="">time…</option>${hours.map(h => `<option value="${h}" ${b && b.start === h ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></div>`; }).join('') || '<div class="empty">No open tasks. Add some on the task sheets (Key areas).</div>'}
       <div class="m" style="margin-top:6px">Sorted: late → ! important → deadline → serves a goal. A start time places a block of the task's estimate (1 h if none).</div></div>
       <div class="card"><h3>Tomorrow so far</h3>${hoursCol(s)}</div></div>`;
@@ -795,7 +845,7 @@ const A = {
   balMove: o => { const k = U.balKind || 'week', r = U.balDate || TODAY, d = s2d(r);
     U.balDate = k === 'week' ? addDays(r, 7 * o.n) : k === 'month' ? d2s(new Date(d.getFullYear(), d.getMonth() + +o.n, 1)) : `${+r.slice(0, 4) + +o.n}-01-01`; render(); },
   help: () => { const from = U.view; U.view = 'help'; U.helpTab = 'app'; render(); // open at the section for the page you came from
-    const el = document.getElementById('h-' + (['goals', 'areas', 'today', 'plan', 'dont', 'notes', 'people', 'ref', 'settings', 'ledger'].includes(from) ? from : 'start')); if (el) el.scrollIntoView(); },
+    const el = document.getElementById('h-' + (['goals', 'areas', 'today', 'plan', 'dont', 'notes', 'people', 'ref', 'settings', 'ledger', 'matrix'].includes(from) ? from : 'start')); if (el) el.scrollIntoView(); },
   helpTab: o => { U.helpTab = o.t; render(); window.scrollTo(0, 0); },
   helpGo: o => { const el = document.getElementById('h-' + o.k); if (el) el.scrollIntoView({ behavior: 'smooth' }); },
   fileNew: () => fPick(true),
@@ -1003,6 +1053,8 @@ function selfTest() {
   S.settings = { dayStart: 7, dayEnd: 22 }; console.assert(availableH('y') === 15 && set().reviewDay === 5, 'settings change the window, keep defaults'); S = keep;
   console.assert(estFactor([{ estimate: 2, actual: 3 }, { estimate: 1, actual: 1 }, { estimate: 1, actual: 2 }]).f === 1.5 && estFactor([{ estimate: 1, actual: 1 }]) === null, 'estFactor');
   console.assert(periodRange('month', '2026-02-10')[1] === '2026-02-28' && periodRange('week', '2026-11-04')[0] === '2026-11-02', 'periodRange');
+  console.assert(quad({ important: true, deadline: '2026-11-04' }, '2026-11-02') === 1 && quad({ important: true, deadline: '2026-12-01' }, '2026-11-02') === 2
+    && quad({ deadline: '2026-11-01' }, '2026-11-02') === 3 && quad({}, '2026-11-02') === 4, 'quad');
   console.log('selftest done');
 }
 if (location.hash === '#test') selfTest();

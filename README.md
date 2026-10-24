@@ -14,7 +14,7 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 > Status: **phase 0 prototype**. It works, but expect changes.
 
 ## Try it
-**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2–v9). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⚙ → load demo** to see an example.
+**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2–v10). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⚙ → load demo** to see an example.
 
 ## What it does
 - **Goals**: 6 personal and 6 work goals, each with up to 3 milestones and a deadline. A goal moves from draft ○○ to signed ●○ to achieved ●●. The goal check uses five rules: clear, realistic, challenging, time-limited, worthwhile.
@@ -23,7 +23,8 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 - **Plan tomorrow**: an evening routine of 7 short steps (close today, booked slots, elephant bite, tasks, activities, calls and e-mails, don't forget).
 - **INFO**: a **Notes** inbox (write notes of several lines, then sort each one to a task, an idea, Don't forget or Reference), **People** (phone and e-mail directory with categories; names are offered as "who") and **Reference** (kept information by key area or task, with search).
 - **📊 Time ledger** (optional, ⚙ → Planning): the Lyubishchev way of looking back. You get plan vs actual minutes per key area, lost time and why, how long finished tasks really took, and a **Balance** view (week, month, year) with your estimating factor.
-- **? Help**: *Using Pušis* (opens at the page you are on) and *The method* (pine tree, overview, results, goals, key areas, tasks, elephant technique, planning rhythm, the Lyubishchev time ledger).
+- **🧭 Covey matrix** (optional, ⚙ → Planning): every open task is sorted into important × urgent quadrants automatically. *Important* means ! or a signed goal; *urgent* means due within N days or late. You get a Matrix view, Q1–Q4 tags, a Q2 hint in Plan tomorrow, and the Q2 share of planned time.
+- **? Help**: *Using Pušis* (opens at the page you are on) and *The method* (pine tree, overview, results, goals, key areas, tasks, elephant technique, planning rhythm, the Lyubishchev time ledger, Covey's matrix).
 - **⚙ Settings**: day start and end, weekly review day, Flapsi meter on/off, sync (📁 file / ☁ Google Drive), backup. Dates are always shown as YYYY-MM-DD and times as 24 h.
 - **Capture**: press **+** or **N** to note something. It goes to the Notes inbox, Don't forget, Ideas, a task, or a call or e-mail.
 
@@ -39,9 +40,9 @@ By default your data stays **in your browser only** (localStorage), and nothing 
 - Built-in self-check: open the page with `#test` at the end of the address and look at the browser console.
 - Tests (need [Playwright](https://playwright.dev)):
   ```
-  node prototype/proto_test_v9.js <playwright module path> <absolute path to pusis_proto_v9.html> <screenshot folder>
-  node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v9.html>
-  node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v9.html>
+  node prototype/proto_test_v10.js <playwright module path> <absolute path to pusis_proto_v10.html> <screenshot folder>
+  node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v10.html>
+  node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v10.html>
   ```
   `drive_test_v7.js` and `file_test_v7.js` check syncing against a fake Google and a fake file, so no account or real file is needed.
 
