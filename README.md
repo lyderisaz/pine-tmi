@@ -14,7 +14,7 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 > Status: **phase 0 prototype**. It works, but expect changes.
 
 ## Try it
-Open `index.html` (or `prototype/pusis_proto_v2.html`) in a modern browser. There is nothing to install. Use **⋯ → Load demo data** to see an example.
+**Live: https://lyderisaz.github.io/pine-tmi/**. You can also open `index.html` (or `prototype/pusis_proto_v2.html`) from a local copy in a modern browser. There is nothing to install. Use **⋯ → Load demo data** to see an example.
 
 ## What it does
 - **Goals**: 6 personal and 6 work goals, each with up to 3 milestones and a deadline. A goal moves from draft ○○ to signed ●○ to achieved ●●. The goal check uses five rules: clear, realistic, challenging, time-limited, worthwhile.
