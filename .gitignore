@@ -1,0 +1,11 @@
+# Public repo pine-tmi: only the app is published.
+# Research, sources, videos, plans, designs and logs stay local.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/index.html
+!/prototype/
+/prototype/*
+!/prototype/pusis_proto_v2.html
+!/prototype/proto_test_v2.js
