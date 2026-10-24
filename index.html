@@ -73,11 +73,12 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo">🌲 Pušis <span class="m">prototype v5</span></span>
+ <span class="logo">🌲 Pušis <span class="m">prototype v6</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
  <button class="plus" data-a="capture" title="Capture (N)">+</button>
+ <span id="fpill" class="pill clk" data-a="fpill" hidden></span>
  <span id="cloud" class="pill clk" data-a="cloud" hidden></span>
  <button data-a="menu" title="Backup, data and Google">⋯</button>
 </header>
@@ -102,7 +103,7 @@ let lastBody = bodyOf(S);
 function save() { // only real data changes count: they get a timestamp and go to Drive when connected
   const b = bodyOf(S); if (b === lastBody) return; lastBody = b; S.savedAt = new Date().toISOString();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Could not save in this browser — export a backup (⋯)'); }
-  gQueue();
+  gQueue(); fQueue();
 }
 // ---------- Google Drive sync (optional, plan_v5 §3a) ----------
 // The access token lives in memory only; client ID, file id and last remote time stay in this browser (SYNC key).
@@ -186,6 +187,7 @@ async function gSync() {
   try {
     cloud('saving'); const m = await gFind();
     if (!m) return synced(await gPut(null));
+    if (SC.remoteMod && m.modifiedTime === SC.remoteMod) return synced(await gPut(m.id)); // unchanged since our last sync: ours wins without asking
     const remote = await gApi(`${DRV}/${m.id}?alt=media`);
     if (!remote || !remote.areas) { if (confirm(`"${FILE}" in your Drive is not Pušis data. Overwrite it?`)) synced(await gPut(m.id)); else cloud('conflict'); return; }
     if (bodyOf(remote) === bodyOf(S)) return synced(m);
@@ -210,7 +212,73 @@ function gQueue() {
     } catch (e) { if (G.state !== 'connect') { G.lastError = e.message; cloud('error'); } }
   }, 4000);
 }
-const driveNote = () => SC.connected ? ' Your Drive copy will be replaced too on the next sync.' : '';
+const driveNote = () => (SC.connected ? ' Your Drive copy will be replaced too on the next sync.' : '') + (FS.handle ? ' Your data file will be replaced too.' : '');
+// ---------- File sync (optional, option A): one JSON file, e.g. inside the Google Drive for desktop folder ----------
+// Chrome/Edge on a computer only (File System Access API); no Google sign-in. The file handle is kept in IndexedDB,
+// so on the next visit one click ("📁 allow") is enough, or none when the browser remembers the permission.
+const FS = { handle: null, mod: 0, state: '', timer: null, lastError: '', ok: 'showSaveFilePicker' in window };
+function idb(op, val) {
+  return new Promise(res => { try {
+    const r = indexedDB.open('pusis', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => { try {
+      const st = r.result.transaction('kv', op === 'get' ? 'readonly' : 'readwrite').objectStore('kv');
+      const q = op === 'get' ? st.get('file') : op === 'del' ? st.delete('file') : st.put(val, 'file');
+      q.onsuccess = () => res(q.result ?? null); q.onerror = () => res(null);
+    } catch (e) { res(null); } };
+    r.onerror = () => res(null);
+  } catch (e) { res(null); } });
+}
+function fpill(state, note = '') {
+  FS.state = state; const el = document.getElementById('fpill');
+  el.hidden = !FS.handle;
+  el.textContent = { saved: `📁 saved ${note}`, saving: '📁 saving…', allow: '📁 allow', conflict: '📁 conflict', error: '📁 error' }[state] || '📁';
+  el.className = 'pill clk' + (state === 'conflict' || state === 'error' ? ' red' : state === 'allow' ? ' amber' : '');
+  el.title = (FS.handle ? `File: ${FS.handle.name}. ` : '') + ({ allow: 'Click to let Pušis use the file again', conflict: 'The file was changed elsewhere: click to choose which copy to keep', error: `${FS.lastError} — click to retry` }[state] || 'Click to sync now');
+}
+const fAllowed = async ask => (await FS.handle.queryPermission({ mode: 'readwrite' })) === 'granted' || (ask && (await FS.handle.requestPermission({ mode: 'readwrite' })) === 'granted');
+async function fPick(create) {
+  if (!FS.ok) { toast('Saving to a file needs Chrome or Edge on a computer'); return; }
+  const types = [{ description: 'Pušis data', accept: { 'application/json': ['.json'] } }];
+  try { FS.handle = create ? await showSaveFilePicker({ suggestedName: 'pusis-data.json', types }) : (await showOpenFilePicker({ types }))[0]; }
+  catch (e) { return; } // picker cancelled
+  FS.mod = 0; await idb('put', FS.handle); await fSync(true);
+}
+async function fWrite() {
+  const w = await FS.handle.createWritable(); await w.write(JSON.stringify(S, null, 1)); await w.close();
+  FS.mod = (await FS.handle.getFile()).lastModified; fpill('saved', stamp().slice(11));
+}
+// pick, allow and "sync now": nothing is replaced without asking (same rule as Drive)
+async function fSync(ask) {
+  try {
+    if (!await fAllowed(ask)) { fpill('allow'); return; }
+    fpill('saving'); const f = await FS.handle.getFile(), text = await f.text();
+    if (!text.trim() || (FS.mod && f.lastModified === FS.mod)) return await fWrite(); // empty, or unchanged since our last sync: ours wins without asking
+    let other = null; try { other = JSON.parse(text); } catch (e) {}
+    if (!other || !other.areas) { if (confirm(`"${FS.handle.name}" is not Pušis data. Overwrite it?`)) return await fWrite(); fpill('conflict'); return; }
+    if (bodyOf(other) === bodyOf(S)) { FS.mod = f.lastModified; return fpill('saved', stamp().slice(11)); }
+    const newer = (other.savedAt || '') > (S.savedAt || '');
+    const ok = confirm(newer
+      ? `The file is newer (saved ${fmtWhen(other.savedAt)}; this browser: ${fmtWhen(S.savedAt)}).\n\nOK = load the file into this browser.\nCancel = keep this browser's data and overwrite the file.`
+      : `This browser's data is newer (saved ${fmtWhen(S.savedAt)}; file: ${fmtWhen(other.savedAt)}).\n\nOK = overwrite the file with this browser's data.\nCancel = load the file into this browser.`);
+    if (ok === newer) { S = other; lastBody = bodyOf(S); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} FS.mod = f.lastModified; fpill('saved', stamp().slice(11)); render(); toast('Loaded your data from the file'); }
+    else await fWrite();
+  } catch (e) { FS.lastError = e.message; fpill('error'); toast('File: ' + e.message, 8000); }
+}
+// after each real change: write shortly after, but never over a file changed elsewhere (another computer via Drive)
+function fQueue() {
+  if (!FS.handle || FS.state === 'allow') return;
+  clearTimeout(FS.timer); fpill('saving');
+  FS.timer = setTimeout(async () => {
+    try {
+      if (!await fAllowed(false)) { fpill('allow'); return; }
+      const f = await FS.handle.getFile();
+      if (FS.mod && f.lastModified !== FS.mod) { fpill('conflict'); toast('The file changed elsewhere — click 📁 conflict to choose'); return; }
+      await fWrite();
+    } catch (e) { FS.lastError = e.message; fpill('error'); }
+  }, 1500);
+}
+
 
 const id = () => S.seq++;
 
@@ -478,6 +546,7 @@ function setTask(t, v) {
 const A = {
   go: o => { U.view = o.v; U.step = 1; render(); },
   cloud: () => !SC.connected || G.state === 'connect' ? gConnect() : gSync(),
+  fpill: () => fSync(true),
   menu: () => form('Settings, backup and Google', [
     [{ k: 'dayStart', label: 'Day starts', type: 'select', value: set().dayStart, options: [5, 6, 7, 8, 9, 10, 11, 12].map(h => [h, hh(h)]) },
      { k: 'dayEnd', label: 'Day ends', type: 'select', value: set().dayEnd, options: [16, 17, 18, 19, 20, 21, 22, 23, 24].map(h => [h, hh(h)]) },
@@ -486,6 +555,8 @@ const A = {
     { k: 'clientId', label: BUILT_IN_CLIENT_ID ? 'Own Google Client ID (optional — leave empty to use the built-in one)' : 'Google Client ID (see GOOGLE_SETUP.md in the repo)', value: SC.clientId || '', ph: '….apps.googleusercontent.com' }],
     v => { if (+v.dayEnd - +v.dayStart < 2) { toast('The day must be at least 2 hours long'); return false; }
       S.settings = { dayStart: +v.dayStart, dayEnd: +v.dayEnd, reviewDay: +v.reviewDay, flapsi: v.flapsi }; SC.clientId = v.clientId; scSave(); toast('Settings saved'); }, [
+    ...(FS.ok ? [['📁 Save to a new file…', () => { fPick(true); }], ['📁 Open an existing file…', () => { fPick(false); }]] : []),
+    ...(FS.handle ? [['📁 Stop using the file', () => { clearTimeout(FS.timer); FS.handle = null; idb('del'); fpill(''); toast('Stopped — the file stays where it is'); }]] : []),
     ['Connect Google Drive', v => { SC.clientId = v.clientId; scSave(); gConnect(); }],
     ...(SC.connected ? [['Sync now', () => { gSync(); }], ['Disconnect Google', () => { if (G.token && window.google) google.accounts.oauth2.revoke(G.token, () => {}); G.token = null; SC = SC.clientId ? { clientId: SC.clientId } : {}; scSave(); cloud(''); toast('Disconnected — the Drive file stays in your Drive'); }]] : []),
     ['Export JSON backup', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' })); a.download = `pusis-backup-${TODAY}.json`; a.click(); return false; }],
@@ -657,6 +728,7 @@ function selfTest() {
 }
 if (location.hash === '#test') selfTest();
 cloud(SC.connected ? 'connect' : '');
+if (FS.ok) idb('get').then(async h => { if (!h || !h.queryPermission) return; FS.handle = h; fpill('allow'); if (await fAllowed(false)) fSync(false); });
 render();
 </script>
 </body></html>
