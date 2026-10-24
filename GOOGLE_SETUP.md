@@ -4,7 +4,7 @@ Pušis works without Google. Connecting Drive saves your data as one file, `pusi
 
 ## Using the live app
 If the app owner has built in a Client ID, there is nothing to set up: click the muted **☁ Drive** pill in the header, choose your Google account, and allow access.
-While the Google project is in *testing* mode, only people on the owner's **test users** list can sign in. Everyone else sees "access blocked". Ask the owner to add you, or use your own Client ID (below, then paste it in **⋯**).
+While the Google project is in *testing* mode, only people on the owner's **test users** list can sign in. Everyone else sees "access blocked". Ask the owner to add you, or use your own Client ID (below, then paste it in **⚙ → Google Drive → Advanced**).
 
 ## Creating a Client ID (app owner, or your own fork)
 It takes about 10 minutes and costs nothing. Google renames console menus now and then, so the labels below may differ slightly.
@@ -38,7 +38,7 @@ It takes about 10 minutes and costs nothing. Google renames console menus now an
 
 ### 5. Put the Client ID into Pušis
 - **App owner:** set `const BUILT_IN_CLIENT_ID = '…apps.googleusercontent.com';` in `index.html` (and the current `prototype/` version) and publish. Every device then just clicks **☁ Drive**.
-- **Anyone else:** open the app → **⋯** → paste your own Client ID → **Connect Google Drive**. It is stored in that browser only.
+- **Anyone else:** open the app → **⚙ → Google Drive → Advanced** → paste your own Client ID → **connect**. It is stored in that browser only.
 
 Then pick your account and allow access. Google will warn that the app is unverified, because it is in testing mode. Continue only if you trust the owner of the Client ID.
 
@@ -51,5 +51,5 @@ The ☁ pill in the header shows the sync state:
 ## Notes
 - Pušis can see **only the files it created** (scope `drive.file`), not the rest of your Drive.
 - The access token stays in browser memory only. The Client ID and the Drive file id are stored in this browser.
-- **⋯ → Disconnect** stops syncing. The Drive file stays in your Drive.
-- Keep using **⋯ → Export JSON backup** now and then. This is a prototype.
+- **⚙ → Google Drive → disconnect** stops syncing. The Drive file stays in your Drive.
+- Keep using **⚙ → Backup → export** now and then. This is a prototype.

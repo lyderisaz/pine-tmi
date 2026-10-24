@@ -7,6 +7,7 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#141618; --paper:#1d2023; --fg:#e8e8e6; --muted:#9a9a96; --line:#4a4e52; --soft:#30343a; --booked:#5a5f64; --free:#262a2e; } }
 :root[data-theme="dark"] { --bg:#141618; --paper:#1d2023; --fg:#e8e8e6; --muted:#9a9a96; --line:#4a4e52; --soft:#30343a; --booked:#5a5f64; --free:#262a2e; }
 * { box-sizing:border-box; }
+[hidden] { display:none !important; }
 body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
 button, input, select, textarea { font:inherit; color:inherit; }
 button { cursor:pointer; background:var(--paper); border:1px solid var(--line); border-radius:5px; padding:2px 9px; }
@@ -73,14 +74,14 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo">🌲 Pušis <span class="m">prototype v6</span></span>
+ <span class="logo">🌲 Pušis <span class="m">prototype v7</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
  <button class="plus" data-a="capture" title="Capture (N)">+</button>
  <span id="fpill" class="pill clk" data-a="fpill" hidden></span>
  <span id="cloud" class="pill clk" data-a="cloud" hidden></span>
- <button data-a="menu" title="Backup, data and Google">⋯</button>
+ <button data-a="menu" title="Settings, sync and backup">⚙</button>
 </header>
 <main id="app"></main>
 <dialog id="dlg"></dialog>
@@ -93,7 +94,7 @@ const KEY = 'pusis.proto.v1';
 const COLOURS = ['#5b7fa6', '#7a9a5b', '#b07a4f', '#9a6aa0', '#5a9a9a', '#a65b5b', '#7b7b3a', '#3a6b7b', '#8a6d3b'];
 function seed() {
   const names = [['Work', 'making the money'], ['Personal development', 'sharpen the saw'], ['Family & kids', ''], ['Friends', 'making the fun'], ['Prof. assoc / NGO', 'networking']];
-  return { seq: 1, goals: [], tasks: [], acts: [], minors: [], ideas: [], notes: [], blocks: [], days: {},
+  return { seq: 1, goals: [], tasks: [], acts: [], minors: [], ideas: [], notes: [], blocks: [], days: {}, people: [], refs: [],
     areas: names.map(([name, desc], i) => ({ slot: i + 1, name, desc, colour: COLOURS[i], goalIds: [], nextTask: 1 })) };
 }
 let S;
@@ -344,15 +345,60 @@ function nav() {
   document.getElementById('nav').innerHTML =
     `<span class="grp what"><i>WHAT</i>${t('goals', '🌈 Goals')}${t('areas', '🔑 Key areas')}</span>` +
     `<span class="grp when"><i>WHEN</i>${t('today', '🕘 Today')}${t('plan', '🌙 Plan tomorrow')}${t('dont', '✋ Don\'t forget')}</span>` +
-    `<span class="grp info"><i>INFO</i>${t('notes', '✏️ Notes')}<button class="tab" disabled title="MVP (phase 1)">📞 People</button><button class="tab" disabled title="MVP (phase 1)">ℹ️ Reference</button></span>`;
+    `<span class="grp info"><i>INFO</i>${t('notes', '✏️ Notes')}${t('people', '📞 People')}${t('ref', 'ℹ️ Reference')}</span>`;
   const late = S.tasks.filter(t => openTask(t) && t.deadline && t.deadline < TODAY).length + S.acts.filter(a => !a.done && a.by && a.by < TODAY).length;
   const n = S.notes.length + late, f = document.getElementById('flapsi');
   f.hidden = !set().flapsi; f.textContent = `Flapsi ${n}`; f.className = 'pill' + (n > 10 ? ' red' : n > 7 ? ' amber' : '');
 }
-function render() { nav(); document.getElementById('app').innerHTML = V[U.view](); save(); }
+function render() { S.people ||= []; S.refs ||= []; nav(); document.getElementById('app').innerHTML = V[U.view](); save(); }
 
 // ---------- views ----------
 const V = {};
+V.settings = () => {
+  const st = set(), sel = (k, opts, v) => `<select data-c="setting" data-k="${k}" style="width:auto">${opts.map(([a, b]) => `<option value="${a}" ${String(a) === String(v) ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select>`;
+  const pill = id => esc(document.getElementById(id)?.textContent || '');
+  return `<h2>⚙ Settings</h2><div class="col" style="max-width:760px">
+  <div class="card"><h3>Planning</h3>
+    <div class="row"><span>Day starts <span class="m">(time column on Today)</span></span>${sel('dayStart', [5, 6, 7, 8, 9, 10, 11, 12].map(h => [h, hh(h)]), st.dayStart)}</div>
+    <div class="row"><span>Day ends</span>${sel('dayEnd', [16, 17, 18, 19, 20, 21, 22, 23, 24].map(h => [h, hh(h)]), st.dayEnd)}</div>
+    <div class="row"><span>Weekly review day</span>${sel('reviewDay', [1, 2, 3, 4, 5, 6, 0].map(d => [d, WEEKDAYS[d]]), st.reviewDay)}</div>
+    <div class="row"><span>Flapsi-Hapsi meter <span class="m">(loose things counter in the header)</span></span><input type="checkbox" data-c="setting" data-k="flapsi" ${st.flapsi ? 'checked' : ''}></div></div>
+  <div class="card"><h3>📁 Save to a file <span class="m" style="text-transform:none;letter-spacing:0">Chrome or Edge on a computer · no sign-in</span></h3>
+    ${!FS.ok ? '<div class="empty">This browser cannot save to a file. Use Chrome or Edge on a computer, or Google Drive below.</div>'
+      : FS.handle ? `<div class="row"><span>File <b>${esc(FS.handle.name)}</b> · ${pill('fpill')}</span><span><button data-a="fpill">sync now</button> <button data-a="fileStop">stop using</button></span></div>`
+      : `<div class="row"><span class="m">Tip: keep the file in your Google Drive for desktop folder; it syncs it to your other computers.</span><span style="white-space:nowrap"><button class="pri" data-a="fileNew">new file…</button> <button data-a="fileOpen">open file…</button></span></div>`}</div>
+  <div class="card"><h3>☁ Google Drive <span class="m" style="text-transform:none;letter-spacing:0">any browser, also phones · sign in with Google</span></h3>
+    ${SC.connected ? `<div class="row"><span>Connected · ${pill('cloud')}</span><span><button data-a="cloud">sync now</button> <button data-a="gDisconnect">disconnect</button></span></div>`
+      : `<div class="row"><span class="m">${clientId() ? 'Saves pusis-data.json in your Google Drive.' : 'Needs a Google Client ID (see GOOGLE_SETUP.md).'}</span><button class="pri" data-a="gConnectBtn" ${canGoogle() ? '' : 'disabled title="Needs the web version (https) and a Client ID"'}>connect</button></div>`}
+    <details style="margin-top:6px"><summary class="m">Advanced: use your own Google Client ID</summary>
+      <input style="margin-top:6px" data-c="clientId" value="${esc(SC.clientId || '')}" placeholder="….apps.googleusercontent.com${BUILT_IN_CLIENT_ID ? ' (empty = built-in)' : ''}"></details></div>
+  <div class="card"><h3>Backup and data</h3>
+    <div class="row"><span>Backup file (JSON)</span><span><button data-a="exportJson">export</button> <button data-a="importJson">import…</button></span></div>
+    <div class="row"><span>Demo data <span class="m">replaces your data</span></span><button data-a="loadDemo">load demo</button></div>
+    <div class="row"><span class="late">Erase all data in this browser</span><button data-a="eraseAll">erase…</button></div></div>
+  </div>`;
+};
+
+V.people = () => {
+  const groups = {};
+  for (const x of [...S.people].sort((a, b) => a.name.localeCompare(b.name))) (groups[x.category || 'other'] ||= []).push(x);
+  return `<h2>📞 People <span class="m">— your phone and e-mail directory; names here are offered as "who" on tasks and activities</span></h2>
+  <div class="card" style="max-width:860px"><div style="display:flex; gap:6px; margin-bottom:8px"><input data-q="people" placeholder="🔍 search name, organisation, phone, e-mail"><button class="pri" data-a="personEdit">+ person</button></div>
+  ${Object.entries(groups).map(([cat, list]) => `<div class="m" style="margin-top:6px">${esc(cat)}</div>` + list.map(x => `<div class="row" data-qrow="${esc([x.name, x.org, x.phone, x.email].join(' ').toLowerCase())}">
+    <span class="grow"><b>${esc(x.name)}</b>${x.org ? ` <span class="m">· ${esc(x.org)}</span>` : ''}<br>
+    <span class="m">${x.phone ? `<a href="tel:${esc(x.phone.replace(/\s/g, ''))}">📞 ${esc(x.phone)}</a> ` : ''}${x.email ? `<a href="mailto:${esc(x.email)}">@ ${esc(x.email)}</a>` : ''}</span></span>
+    <span class="m">${S.tasks.filter(t => t.who === x.name && openTask(t)).length + S.acts.filter(a => a.who === x.name && !a.done).length || ''}</span><button data-a="personEdit" data-id="${x.id}">edit</button></div>`).join('')).join('') || '<div class="empty">No people yet.</div>'}</div>`;
+};
+V.ref = () => {
+  const groups = {};
+  for (const r of [...S.refs].sort((a, b) => a.title.localeCompare(b.title))) (groups[r.area || 0] ||= []).push(r);
+  return `<h2>ℹ️ Reference <span class="m">— notes that found a home: information you keep, attached to a key area or a task</span></h2>
+  <div class="card" style="max-width:860px"><div style="display:flex; gap:6px; margin-bottom:8px"><input data-q="ref" placeholder="🔍 search titles and text"><button class="pri" data-a="refEdit">+ reference</button></div>
+  ${Object.entries(groups).map(([k, list]) => `<div class="m" style="margin-top:6px">${+k ? esc(`${k} ${area(k)?.name || ''}`) : 'no key area'}</div>` + list.map(r => `<div class="row" data-qrow="${esc((r.title + ' ' + r.body).toLowerCase())}">
+    <span class="grow"><b>${esc(r.title)}</b>${r.taskId && task(r.taskId) ? ` <span class="code">${tcode(task(r.taskId))}</span>` : ''}${linkTag(r.link)}<div class="m" style="white-space:pre-wrap">${esc(r.body.length > 240 ? r.body.slice(0, 240) + '…' : r.body)}</div></span>
+    <button data-a="refEdit" data-id="${r.id}">open</button></div>`).join('')).join('') || '<div class="empty">Nothing kept yet. Sort a note here from the Notes inbox, or add one.</div>'}</div>`;
+};
+
 V.goals = () => {
   const side = (sd, label) => {
     const rows = [1, 2, 3, 4, 5, 6].map(slot => {
@@ -490,8 +536,9 @@ V.dont = () => `<h2>✋ Don't forget <span class="m">— one-off tasks of a few 
   <form data-f="addMinor" style="display:flex; gap:6px; margin-bottom:6px"><input name="text" placeholder="e.g. Buy printer toner" required><button class="pri">add</button></form>
   ${S.minors.filter(x => !x.done).map(x => `<div class="row"><span class="grow">${esc(x.text)}</span><input type="checkbox" data-c="minorDone" data-id="${x.id}"></div>`).join('') || '<div class="empty">Nothing.</div>'}</div>`;
 
-V.notes = () => `<h2>✏️ Notes inbox <span class="m">— capture now, sort later: each note goes onto the tree or is deleted</span></h2><div class="card" style="max-width:760px">
-  ${S.notes.map(n => `<div class="row"><span class="grow">${esc(n.text)} <span class="m">${esc(n.at)}</span></span><button data-a="noteTo" data-id="${n.id}" data-to="task">→ task</button><button data-a="noteTo" data-id="${n.id}" data-to="idea">→ idea</button><button data-a="noteTo" data-id="${n.id}" data-to="minor">→ don't forget</button><button data-a="noteTo" data-id="${n.id}" data-to="del">✕</button></div>`).join('') || '<div class="empty">Inbox is empty.</div>'}</div>`;
+V.notes = () => `<h2>✏️ Notes inbox <span class="m">— capture now, sort later: each note goes onto the tree, into Reference, or is deleted</span></h2><div class="card" style="max-width:860px">
+  <form data-f="addNote" style="display:grid; gap:6px; margin-bottom:8px"><textarea name="text" rows="3" placeholder="Write a note… (several lines are fine; Ctrl+Enter adds it)" required></textarea><div><button class="pri">add note</button></div></form>
+  ${[...S.notes].reverse().map(n => `<div class="row" style="align-items:flex-start"><span class="grow"><span style="white-space:pre-wrap">${esc(n.text)}</span> <span class="m">${esc(n.at)}</span></span><button data-a="noteTo" data-id="${n.id}" data-to="ref">→ reference</button><button data-a="noteTo" data-id="${n.id}" data-to="task">→ task</button><button data-a="noteTo" data-id="${n.id}" data-to="idea">→ idea</button><button data-a="noteTo" data-id="${n.id}" data-to="minor">→ don't forget</button><button data-a="noteTo" data-id="${n.id}" data-to="del">✕</button></div>`).join('') || '<div class="empty">Inbox is empty.</div>'}</div>`;
 
 // ---------- forms ----------
 // form(title, fields, onSave, extra): fields {k, label, type, value, options:[[v,label]], req}; extra: [[label, fn]]
@@ -501,11 +548,11 @@ function form(title, fields, onSave, extra = []) {
     ? `<label class="fld chk"><input type="checkbox" name="${x.k}" ${x.value ? 'checked' : ''}>${esc(x.label)}</label>`
     : `<label class="fld"><span>${esc(x.label)}</span>${x.type === 'select'
       ? `<select name="${x.k}">${x.options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(x.value ?? '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`
-      : x.type === 'textarea' ? `<textarea name="${x.k}" rows="2">${esc(x.value)}</textarea>`
+      : x.type === 'textarea' ? `<textarea name="${x.k}" rows="${x.rows || 2}">${esc(x.value)}</textarea>`
       : x.type === 'date' ? `<span class="dwrap"><input name="${x.k}" value="${esc(x.value)}" placeholder="YYYY-MM-DD" pattern="\\d{4}-\\d{2}-\\d{2}" title="YYYY-MM-DD" ${x.req ? 'required' : ''}><button type="button" data-pick title="Pick a date">📅</button><input type="date" class="hidepick" tabindex="-1"></span>`
       : `<input name="${x.k}" type="${x.type || 'text'}" value="${esc(x.value)}" ${x.req ? 'required' : ''} ${x.list ? `list="${x.list}"` : ''} ${x.ph ? `placeholder="${esc(x.ph)}"` : ''} ${x.type === 'number' ? 'step="0.5" min="0"' : ''}>`}</label>`;
   const rows = fields.map(x => Array.isArray(x) ? `<div class="frow">${x.map(f).join('')}</div>` : f(x)).join('');
-  const people = [...new Set([...S.tasks.map(t => t.who), ...S.acts.map(a => a.who)].filter(w => w && w !== 'me'))];
+  const people = [...new Set([...S.people.map(p => p.name), ...S.tasks.map(t => t.who), ...S.acts.map(a => a.who)].filter(w => w && w !== 'me'))];
   dlg.innerHTML = `<form method="dialog"><h3 style="font-size:14px;color:var(--fg)">${esc(title)}<button type="button" value="x" data-x>✕</button></h3>${rows}
     <datalist id="people">${people.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="btns">${extra.map((e, i) => `<button type="button" data-extra="${i}">${esc(e[0])}</button>`).join('')}<button class="pri" value="ok">save</button></div></form>`;
@@ -547,22 +594,16 @@ const A = {
   go: o => { U.view = o.v; U.step = 1; render(); },
   cloud: () => !SC.connected || G.state === 'connect' ? gConnect() : gSync(),
   fpill: () => fSync(true),
-  menu: () => form('Settings, backup and Google', [
-    [{ k: 'dayStart', label: 'Day starts', type: 'select', value: set().dayStart, options: [5, 6, 7, 8, 9, 10, 11, 12].map(h => [h, hh(h)]) },
-     { k: 'dayEnd', label: 'Day ends', type: 'select', value: set().dayEnd, options: [16, 17, 18, 19, 20, 21, 22, 23, 24].map(h => [h, hh(h)]) },
-     { k: 'reviewDay', label: 'Weekly review day', type: 'select', value: set().reviewDay, options: [1, 2, 3, 4, 5, 6, 0].map(d => [d, WEEKDAYS[d]]) }],
-    { k: 'flapsi', label: 'Show the Flapsi-Hapsi meter (loose things counter)', type: 'check', value: set().flapsi },
-    { k: 'clientId', label: BUILT_IN_CLIENT_ID ? 'Own Google Client ID (optional — leave empty to use the built-in one)' : 'Google Client ID (see GOOGLE_SETUP.md in the repo)', value: SC.clientId || '', ph: '….apps.googleusercontent.com' }],
-    v => { if (+v.dayEnd - +v.dayStart < 2) { toast('The day must be at least 2 hours long'); return false; }
-      S.settings = { dayStart: +v.dayStart, dayEnd: +v.dayEnd, reviewDay: +v.reviewDay, flapsi: v.flapsi }; SC.clientId = v.clientId; scSave(); toast('Settings saved'); }, [
-    ...(FS.ok ? [['📁 Save to a new file…', () => { fPick(true); }], ['📁 Open an existing file…', () => { fPick(false); }]] : []),
-    ...(FS.handle ? [['📁 Stop using the file', () => { clearTimeout(FS.timer); FS.handle = null; idb('del'); fpill(''); toast('Stopped — the file stays where it is'); }]] : []),
-    ['Connect Google Drive', v => { SC.clientId = v.clientId; scSave(); gConnect(); }],
-    ...(SC.connected ? [['Sync now', () => { gSync(); }], ['Disconnect Google', () => { if (G.token && window.google) google.accounts.oauth2.revoke(G.token, () => {}); G.token = null; SC = SC.clientId ? { clientId: SC.clientId } : {}; scSave(); cloud(''); toast('Disconnected — the Drive file stays in your Drive'); }]] : []),
-    ['Export JSON backup', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' })); a.download = `pusis-backup-${TODAY}.json`; a.click(); return false; }],
-    ['Import JSON…', () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const x = JSON.parse(await i.files[0].text()); if (!x.areas || !x.tasks) throw 0; if (confirm('Replace all data in this browser with the backup?' + driveNote())) { S = x; document.getElementById('dlg').close(); render(); toast('Backup loaded'); } } catch (e) { toast('Not a Pušis backup file'); } }; i.click(); return false; }],
-    ['Load demo data', () => { if (confirm('Replace all data in this browser with demo data?' + driveNote())) { S = demo(); toast('Demo data loaded'); } }],
-    ['Erase all data', () => { if (confirm('Erase everything in this browser? Export a backup first if you need it.' + driveNote())) { S = seed(); toast('Erased'); } }]]),
+  menu: () => { U.view = 'settings'; render(); },
+  fileNew: () => fPick(true),
+  fileOpen: () => fPick(false),
+  fileStop: () => { clearTimeout(FS.timer); FS.handle = null; idb('del'); fpill(''); toast('Stopped — the file stays where it is'); render(); },
+  gConnectBtn: () => gConnect(),
+  gDisconnect: () => { if (G.token && window.google) google.accounts.oauth2.revoke(G.token, () => {}); G.token = null; SC = SC.clientId ? { clientId: SC.clientId } : {}; scSave(); cloud(''); toast('Disconnected — the Drive file stays in your Drive'); render(); },
+  exportJson: () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' })); a.download = `pusis-backup-${TODAY}.json`; a.click(); },
+  importJson: () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const x = JSON.parse(await i.files[0].text()); if (!x.areas || !x.tasks) throw 0; if (confirm('Replace all data in this browser with the backup?' + driveNote())) { S = x; render(); toast('Backup loaded'); } } catch (e) { toast('Not a Pušis backup file'); } }; i.click(); },
+  loadDemo: () => { if (confirm('Replace all data in this browser with demo data?' + driveNote())) { S = demo(); render(); toast('Demo data loaded'); } },
+  eraseAll: () => { if (confirm('Erase everything in this browser? Export a backup first if you need it.' + driveNote())) { S = seed(); render(); toast('Erased'); } },
   capture: () => form('Capture', [
     { k: 'type', label: 'Type', type: 'select', value: 'note', options: [['note', 'Note → Notes inbox'], ['minor', "Don't forget"], ['idea', 'Idea'], ['task', 'Task'], ['call', 'Call'], ['email', 'E-mail']] },
     { k: 'text', label: 'Text', req: true, ph: 'Type and press Enter' },
@@ -635,8 +676,31 @@ const A = {
     if (o.to === 'del') { if (confirm('Delete this note?')) { drop(); render(); } }
     else if (o.to === 'idea') { S.ideas.push({ id: id(), area: 0, text: n.text, status: 'open' }); drop(); render(); }
     else if (o.to === 'minor') { S.minors.push({ id: id(), text: n.text, done: false }); drop(); render(); }
+    else if (o.to === 'ref') A.refEdit({ note: n.id });
     else form('Note → task', [{ k: 'what', label: 'Task', value: n.text, req: true }, { k: 'area', label: 'Key area', type: 'select', value: 1, options: areaOpts(false) }, { k: 'deadline', label: 'Deadline', type: 'date' }],
       v => { newTask(v.area, v); drop(); }); },
+  personEdit: o => { const x = o.id ? S.people.find(p => p.id === +o.id) : null;
+    form(x ? x.name : 'New person', [
+      [{ k: 'name', label: 'Name', value: x?.name, req: true }, { k: 'org', label: 'Organisation (optional)', value: x?.org }],
+      [{ k: 'phone', label: 'Phone', value: x?.phone }, { k: 'email', label: 'E-mail', value: x?.email, type: 'email' }],
+      { k: 'category', label: 'Category', type: 'select', value: x?.category || 'other', options: ['family', 'friend', 'colleague', 'client', 'supplier', 'partner', 'authority', 'other'].map(c => [c, c]) },
+      { k: 'note', label: 'Note', type: 'textarea', value: x?.note }],
+      v => { if (S.people.some(p => p !== x && p.name.toLowerCase() === v.name.toLowerCase())) { toast('There is already a person with this name'); return false; }
+        if (x) { const old = x.name; Object.assign(x, v); if (old !== v.name) { S.tasks.forEach(t => { if (t.who === old) t.who = v.name; }); S.acts.forEach(a => { if (a.who === old) a.who = v.name; }); } }
+        else S.people.push({ id: id(), ...v }); },
+      x ? [['delete', () => { if (!confirm(`Delete ${x.name}? Tasks keep the name as text.`)) return false; S.people = S.people.filter(p => p !== x); }]] : []); },
+  refEdit: o => { const r = o.id ? S.refs.find(x => x.id === +o.id) : null, n = o.note ? S.notes.find(x => x.id === +o.note) : null;
+    const lines = (n?.text || '').split('\n'), tasks = S.tasks.filter(t => t.status !== 'archived');
+    form(r ? 'Reference' : n ? 'Note → reference' : 'New reference', [
+      { k: 'title', label: 'Title', value: r?.title ?? (lines.length > 1 ? lines[0] : (n?.text || '').slice(0, 60)), req: true },
+      { k: 'body', label: 'Text', type: 'textarea', rows: 8, value: r?.body ?? (lines.length > 1 ? lines.slice(1).join('\n') : n?.text || '') },
+      [{ k: 'area', label: 'Key area (optional)', type: 'select', value: r?.area || '', options: [['', '—'], ...areaOpts(false)] },
+       { k: 'task', label: 'Task (optional)', type: 'select', value: r?.taskId || '', options: [['', '—'], ...tasks.map(t => [t.id, `${tcode(t)} ${t.what}`])] }],
+      { k: 'link', label: '🔗 Link (URL or file path, optional)', value: r?.link }],
+      v => { const t = v.task ? task(v.task) : null, data = { title: v.title, body: v.body, area: t ? t.area : (v.area ? +v.area : 0), taskId: t ? t.id : null, link: v.link };
+        if (r) Object.assign(r, data); else S.refs.push({ id: id(), ...data, at: stamp() });
+        if (n) S.notes = S.notes.filter(x => x !== n); },
+      r ? [['delete', () => { if (!confirm('Delete this reference?')) return false; S.refs = S.refs.filter(x => x !== r); }]] : []); },
   pickDate: (o, el) => { try { el.nextElementSibling.showPicker(); } catch (e) { toast('Use ◀ ▶ to change the day'); } },
   dateMove: o => { U.date = +o.n === 0 ? TODAY : addDays(U.date, +o.n); render(); },
   booked: o => form(`Book time · ${dayName(o.date)}`, [{ k: 'title', label: 'What is booked', req: true, ph: 'Meeting, call, appointment…' },
@@ -660,6 +724,9 @@ const A = {
   finish: () => { U.date = addDays(U.date, 1); U.view = 'today'; U.step = 1; toast('Tomorrow is planned'); render(); },
 };
 const C = { // change handlers
+  setting: el => { const k = el.dataset.k, v = el.type === 'checkbox' ? el.checked : +el.value, next = { ...set(), [k]: v };
+    if (next.dayEnd - next.dayStart < 2) { toast('The day must be at least 2 hours long'); return; } S.settings = next; },
+  clientId: el => { SC.clientId = el.value.trim(); scSave(); G.clientFor = ''; toast(SC.clientId ? 'Own Client ID saved' : 'Using the built-in Client ID'); },
   taskDone: el => { task(el.dataset.id).status = el.checked ? 'done' : 'open'; },
   actDone: el => { act(el.dataset.id).done = el.checked; },
   minorDone: el => { S.minors.find(x => x.id === +el.dataset.id).done = true; },
@@ -677,12 +744,16 @@ const C = { // change handlers
 };
 const F = { // form submits
   addIdea: fd => S.ideas.push({ id: id(), area: 0, text: fd.get('text').trim(), status: 'open' }),
+  addNote: fd => S.notes.push({ id: id(), text: fd.get('text').trim(), at: stamp() }),
   addMinor: fd => S.minors.push({ id: id(), text: fd.get('text').trim(), done: false }),
 };
 document.addEventListener('click', e => { const el = e.target.closest('[data-a]'); if (el && A[el.dataset.a]) A[el.dataset.a](el.dataset, el, e); });
 document.addEventListener('change', e => { const el = e.target.closest('[data-c]'); if (el && C[el.dataset.c]) { C[el.dataset.c](el); render(); } });
 document.addEventListener('submit', e => { const f = e.target.closest('[data-f]'); if (f) { e.preventDefault(); F[f.dataset.f](new FormData(f)); render(); } });
-document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'n' && !e.target.closest('input, textarea, select, dialog') && !e.ctrlKey && !e.metaKey) { e.preventDefault(); A.capture(); } });
+document.addEventListener('input', e => { const q = e.target.closest('[data-q]'); if (!q) return; const v = q.value.toLowerCase().trim();
+  document.querySelectorAll('[data-qrow]').forEach(r => { r.hidden = !!v && !r.dataset.qrow.includes(v); }); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey && e.target.closest('form[data-f] textarea')) { e.preventDefault(); e.target.form.requestSubmit(); return; }
+ if (e.key.toLowerCase() === 'n' && !e.target.closest('input, textarea, select, dialog') && !e.ctrlKey && !e.metaKey) { e.preventDefault(); A.capture(); } });
 
 // ---------- demo data (generic examples) ----------
 function demo() {
@@ -708,7 +779,9 @@ function demo() {
   ac(t1, 'Update slides', 'do', 'me', add(0)); ac(t1, 'Cost estimate', 'do', 'me', add(1)); ac(t1, 'Ask for supplier references', 'call', 'Anna', add(1)); ac(t1, 'Send draft plan', 'email', 'Client', add(2));
   D.minors.push({ id: D.seq++, text: 'Buy printer toner', done: false });
   D.ideas.push({ id: D.seq++, area: 0, text: 'Book: "Lessons from ten years of projects"', status: 'open' });
-  D.notes.push({ id: D.seq++, text: 'Ask Anna about venue prices', at: 'demo' });
+  D.notes.push({ id: D.seq++, text: 'Ask Anna about venue prices', at: 'demo' }, { id: D.seq++, text: 'Ideas from the team meeting\n- shorter weekly call\n- shared task list', at: 'demo' });
+  D.people.push({ id: D.seq++, name: 'Anna', org: 'Design studio', category: 'colleague', phone: '+370 600 00000', email: 'anna@example.com', note: '' }, { id: D.seq++, name: 'Client', org: 'Example Ltd', category: 'client', phone: '', email: 'office@example.com', note: '' });
+  D.refs.push({ id: D.seq++, title: 'Launch checklist', body: '1. Price list\n2. Brochure\n3. Website page', area: 1, taskId: t1.id, link: '', at: 'demo' }, { id: D.seq++, title: 'Office Wi-Fi', body: 'Network: Office-5G', area: 0, taskId: null, link: '', at: 'demo' });
   D.blocks.push({ id: D.seq++, date: T, start: 9, end: 10, kind: 'booked', title: 'Client call', area: 1 }, { id: D.seq++, date: T, start: 12, end: 13, kind: 'booked', title: 'Lunch', area: null },
     { id: D.seq++, date: T, start: 10, end: 12, kind: 'planned', taskId: t1.id, area: 1 }, { id: D.seq++, date: add(1), start: 9, end: 10, kind: 'booked', title: 'Team call', area: 1 });
   D.days[T] = { tasks: [t1.id], acts: [], elephant: 'Certificate essay — 2 pages', areaMin: {} };
