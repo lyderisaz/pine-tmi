@@ -14,7 +14,7 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 > Status: **phase 0 prototype**. It works, but expect changes.
 
 ## Try it
-**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2, v3). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⋯ → Load demo data** to see an example.
+**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2, v3, v4). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⋯ → Load demo data** to see an example.
 
 ## What it does
 - **Goals**: 6 personal and 6 work goals, each with up to 3 milestones and a deadline. A goal moves from draft ○○ to signed ●○ to achieved ●●. The goal check uses five rules: clear, realistic, challenging, time-limited, worthwhile.
@@ -26,17 +26,17 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 ## Your data
 By default your data stays **in your browser only** (localStorage), and nothing is sent anywhere. Use **⋯ → Export JSON backup** regularly. If you clear the browser data, you lose your plans.
 
-**Optional: Google Drive sync.** Pušis can save your data as `pusis-data.json` in *your own* Google Drive and load it on another device. It uses your own Google Client ID and can see only the files it creates. Nothing is overwritten without asking when the Drive copy was changed elsewhere. Setup: [GOOGLE_SETUP.md](GOOGLE_SETUP.md).
+**Optional: Google Drive sync.** Pušis can save your data as `pusis-data.json` in *your own* Google Drive and load it on another device. Click **☁ Drive** to connect (the live app has a built-in Client ID; Google lets only the owner's test users in while the project is in testing mode). It can see only the files it creates. Nothing is overwritten without asking when the Drive copy was changed elsewhere. Setup: [GOOGLE_SETUP.md](GOOGLE_SETUP.md).
 
 ## Development
-- One self-contained HTML file with plain JavaScript and no build step. Older versions (v2) are kept for comparison.
+- One self-contained HTML file with plain JavaScript and no build step. Older versions are kept in `prototype/` for comparison.
 - Built-in self-check: open the page with `#test` at the end of the address and look at the browser console.
 - Tests (need [Playwright](https://playwright.dev)):
   ```
-  node prototype/proto_test_v2.js <playwright module path> <absolute path to pusis_proto_v3.html> <screenshot folder>
-  node prototype/drive_test_v3.js <playwright module path> <absolute path to pusis_proto_v3.html>
+  node prototype/proto_test_v2.js <playwright module path> <absolute path to pusis_proto_v4.html> <screenshot folder>
+  node prototype/drive_test_v4.js <playwright module path> <absolute path to pusis_proto_v4.html>
   ```
-  `drive_test_v3.js` checks Drive sync against a fake Google: no account needed.
+  `drive_test_v4.js` checks Drive sync against a fake Google: no account needed.
 
 ## Credits
 The method comes from the **Time Manager®** system created in 1975 by Claus Møller and Time Manager International A/S (TMI). This project is independent and is **not affiliated with or endorsed by TMI**. "Time Manager" is a trademark of its owner.
