@@ -14,13 +14,14 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 > Status: **phase 0 prototype**. It works, but expect changes.
 
 ## Try it
-**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2, v3, v4). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⋯ → Load demo data** to see an example.
+**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2–v5). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⋯ → Load demo data** to see an example.
 
 ## What it does
 - **Goals**: 6 personal and 6 work goals, each with up to 3 milestones and a deadline. A goal moves from draft ○○ to signed ●○ to achieved ●●. The goal check uses five rules: clear, realistic, challenging, time-limited, worthwhile.
 - **Key areas**: one screen with three panes (key areas | task sheet | activity sheet). Codes such as 1.1 and 1.1.3, ! for important tasks, ongoing (∞) vs temporary tasks, an ideas bank, and an optional link on each item.
 - **Today**: the elephant of the day, a time column from 08:00 to 21:00 for booked and planned time, Tasks / Activities / Calls & e-mails lists, a Don't forget list, and minutes per key area. Items due today appear here by themselves.
 - **Plan tomorrow**: an evening routine of 7 short steps (close today, booked slots, elephant bite, tasks, activities, calls and e-mails, don't forget).
+- **Settings** (⋯): day start and end, weekly review day, Flapsi meter on/off. Dates are always shown as YYYY-MM-DD and times as 24 h.
 - **Capture**: press **+** or **N** to note something. It goes to the Notes inbox, Don't forget, Ideas, a task, or a call or e-mail.
 
 ## Your data
@@ -33,10 +34,10 @@ By default your data stays **in your browser only** (localStorage), and nothing 
 - Built-in self-check: open the page with `#test` at the end of the address and look at the browser console.
 - Tests (need [Playwright](https://playwright.dev)):
   ```
-  node prototype/proto_test_v2.js <playwright module path> <absolute path to pusis_proto_v4.html> <screenshot folder>
-  node prototype/drive_test_v4.js <playwright module path> <absolute path to pusis_proto_v4.html>
+  node prototype/proto_test_v5.js <playwright module path> <absolute path to pusis_proto_v5.html> <screenshot folder>
+  node prototype/drive_test_v5.js <playwright module path> <absolute path to pusis_proto_v5.html>
   ```
-  `drive_test_v4.js` checks Drive sync against a fake Google: no account needed.
+  `drive_test_v5.js` checks Drive sync against a fake Google: no account needed.
 
 ## Credits
 The method comes from the **Time Manager®** system created in 1975 by Claus Møller and Time Manager International A/S (TMI). This project is independent and is **not affiliated with or endorsed by TMI**. "Time Manager" is a trademark of its owner.
