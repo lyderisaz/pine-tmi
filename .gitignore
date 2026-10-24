@@ -5,7 +5,10 @@
 !/README.md
 !/LICENSE
 !/index.html
+!/GOOGLE_SETUP.md
 !/prototype/
 /prototype/*
 !/prototype/pusis_proto_v2.html
 !/prototype/proto_test_v2.js
+!/prototype/pusis_proto_v3.html
+!/prototype/drive_test_v3.js
