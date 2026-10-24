@@ -14,7 +14,7 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 > Status: **phase 0 prototype**. It works, but expect changes.
 
 ## Try it
-**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2–v7). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⚙ → load demo** to see an example.
+**Live: https://lyderisaz.github.io/pine-tmi/**. `index.html` is the current app; `prototype/` keeps the versioned history (v2–v8). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⚙ → load demo** to see an example.
 
 ## What it does
 - **Goals**: 6 personal and 6 work goals, each with up to 3 milestones and a deadline. A goal moves from draft ○○ to signed ●○ to achieved ●●. The goal check uses five rules: clear, realistic, challenging, time-limited, worthwhile.
@@ -22,6 +22,7 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 - **Today**: the elephant of the day, a time column from 08:00 to 21:00 for booked and planned time, Tasks / Activities / Calls & e-mails lists, a Don't forget list, and minutes per key area. Items due today appear here by themselves.
 - **Plan tomorrow**: an evening routine of 7 short steps (close today, booked slots, elephant bite, tasks, activities, calls and e-mails, don't forget).
 - **INFO**: a **Notes** inbox (write notes of several lines, then sort each one to a task, an idea, Don't forget or Reference), **People** (phone and e-mail directory with categories; names are offered as "who") and **Reference** (kept information by key area or task, with search).
+- **? Help**: *Using Pušis* (opens at the page you are on) and *The method* (pine tree, overview, results, goals, key areas, tasks, elephant technique, planning rhythm).
 - **⚙ Settings**: day start and end, weekly review day, Flapsi meter on/off, sync (📁 file / ☁ Google Drive), backup. Dates are always shown as YYYY-MM-DD and times as 24 h.
 - **Capture**: press **+** or **N** to note something. It goes to the Notes inbox, Don't forget, Ideas, a task, or a call or e-mail.
 
@@ -37,9 +38,9 @@ By default your data stays **in your browser only** (localStorage), and nothing 
 - Built-in self-check: open the page with `#test` at the end of the address and look at the browser console.
 - Tests (need [Playwright](https://playwright.dev)):
   ```
-  node prototype/proto_test_v7.js <playwright module path> <absolute path to pusis_proto_v7.html> <screenshot folder>
-  node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v7.html>
-  node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v7.html>
+  node prototype/proto_test_v8.js <playwright module path> <absolute path to pusis_proto_v8.html> <screenshot folder>
+  node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v8.html>
+  node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v8.html>
   ```
   `drive_test_v7.js` and `file_test_v7.js` check syncing against a fake Google and a fake file, so no account or real file is needed.
 

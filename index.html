@@ -8,6 +8,9 @@
 :root[data-theme="dark"] { --bg:#141618; --paper:#1d2023; --fg:#e8e8e6; --muted:#9a9a96; --line:#4a4e52; --soft:#30343a; --booked:#5a5f64; --free:#262a2e; }
 * { box-sizing:border-box; }
 [hidden] { display:none !important; }
+.helpgrid { display:grid; grid-template-columns:210px 1fr; gap:12px; } .helptoc { align-self:start; position:sticky; top:70px; line-height:1.5; } .helptoc button { text-align:left; padding:3px 0; }
+.help .card { scroll-margin-top:70px; } .help p, .help li { line-height:1.55; } .help ul, .help ol { padding-left:20px; margin:6px 0; } .help code { font-size:12px; }
+@media (max-width:820px) { .helpgrid { grid-template-columns:1fr; } .helptoc { position:static; } }
 body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
 button, input, select, textarea { font:inherit; color:inherit; }
 button { cursor:pointer; background:var(--paper); border:1px solid var(--line); border-radius:5px; padding:2px 9px; }
@@ -74,13 +77,14 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo">🌲 Pušis <span class="m">prototype v7</span></span>
+ <span class="logo">🌲 Pušis <span class="m">prototype v8</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
  <button class="plus" data-a="capture" title="Capture (N)">+</button>
  <span id="fpill" class="pill clk" data-a="fpill" hidden></span>
  <span id="cloud" class="pill clk" data-a="cloud" hidden></span>
+ <button data-a="help" title="Help: using Pušis and the method">?</button>
  <button data-a="menu" title="Settings, sync and backup">⚙</button>
 </header>
 <main id="app"></main>
@@ -354,6 +358,123 @@ function render() { S.people ||= []; S.refs ||= []; nav(); document.getElementBy
 
 // ---------- views ----------
 const V = {};
+
+// ---------- Help (two parts: using the app, and the method behind it) ----------
+const HELP = {
+  app: [
+    ['start', 'Getting started', `
+<p>Pušis is a personal planner built like a pine tree: <b>goals</b> → <b>key areas</b> → <b>tasks</b> → <b>activities</b>. Every small thing you have to do hangs somewhere on that tree, so you keep the overview.</p>
+<ol><li>Write a few <b>goals</b> (🌈 Goals) and sign the ones you commit to.</li>
+<li>Name your <b>key areas</b> (🔑 Key areas): up to 9 parts of your life and work.</li>
+<li>Fill each key area's <b>task sheet</b>; split bigger tasks into <b>activities</b>.</li>
+<li>Every evening, <b>🌙 Plan tomorrow</b>. During the day, work from <b>🕘 Today</b>.</li></ol>
+<p>Want to look around first? Use <b>⚙ → load demo</b>. It replaces your data, so do it before you start for real, or export a backup first.</p>
+<p><b>Your data</b> stays in this browser unless you turn on syncing (⚙ → 📁 file or ☁ Google Drive). Export a backup now and then: ⚙ → Backup → export.</p>`],
+    ['goals', '🌈 Goals', `
+<p>Two columns, <b>Personal</b> and <b>Work</b>, with 6 goals each. A goal has a deadline (a month such as <code>2027-03</code> is enough), an optional measure and start date, and up to 3 <b>milestones</b> ①②③.</p>
+<p>The eyes show the state: <b>○○</b> draft · <b>●○</b> signed, meaning you committed to it (✍ sign) · <b>●●</b> achieved. Only signed goals are offered when you link a task to a goal.</p>
+<p>"TMI rules n/5" counts how many of the five goal rules you ticked (see <i>The method</i>).</p>`],
+    ['areas', '🔑 Key areas', `
+<p>Three panes: <b>key areas</b> | the selected area's <b>task sheet</b> | the selected task's <b>activity sheet</b>.</p>
+<ul><li><b>Codes</b>: task 1.3 is task 3 in key area 1; activity 1.3.2 is its second activity. Codes never change, so you can write them anywhere.</li>
+<li><b>!</b> marks an important task. It comes first when you plan tomorrow.</li>
+<li><b>Temporary</b> tasks have an end and a ✓ box. <b>Ongoing</b> tasks (∞), such as monthly invoices, never end; plan them when needed.</li>
+<li>Activity <b>kind</b>: <i>do</i>, <i>📞 call</i> or <i>@ e-mail</i>. Calls and e-mails get their own list on Today.</li>
+<li><b>Who</b>: "me" or a name; names from 📞 People are suggested.</li>
+<li><b>🔗 Link</b>: a web address or file path for the related document.</li>
+<li>Slot <b>0 💡 Ideas</b> is your ideas bank: turn an idea into a task (→ task) or discard it.</li></ul>`],
+    ['today', '🕘 Today', `
+<p>Your daily plan. ◀ ▶ and 📅 move between days; the header shows the week and day number, and 📅 <i>weekly review day</i> on the day set in ⚙.</p>
+<ul><li><b>Time column</b>: click a free hour to <b>book</b> it (meetings, calls, appointments; shown dark). Planned task blocks show the task code. Click a block to remove it.</li>
+<li><b>■ Tasks · ≣ Activities · 📞 @ Calls & e-mails</b>: what you planned for the day. Anything <b>due today</b> or <b>late</b> appears here by itself.</li>
+<li><b>🐘 Elephant of the day</b>: the one bite of your big task for today.</li>
+<li><b>Time per key area</b>: where the day went, counted from the blocks. Correct it in Plan tomorrow, step 1.</li></ul>`],
+    ['plan', '🌙 Plan tomorrow', `
+<p>About five minutes each evening. You can skip any step.</p>
+<ol><li><b>Close today</b>: tick what is done; move the rest to tomorrow or back to its sheet; correct the minutes per key area.</li>
+<li><b>Booked</b>: enter tomorrow's fixed appointments.</li>
+<li><b>Elephant</b>: tomorrow's bite of the big task.</li>
+<li><b>Tasks</b>: tick what you will do. The list is sorted: late → ! important → nearest deadline → serves a goal. Choosing a start time places a block of the task's estimate.</li>
+<li><b>Activities</b> of the picked tasks, plus anything due.</li>
+<li><b>Calls & e-mails.</b></li>
+<li><b>Don't forget</b>: a last glance. Then <b>Finish</b> opens tomorrow.</li></ol>`],
+    ['dont', "✋ Don't forget", `<p>Small one-off things that take a few minutes and need no follow-up ("buy toner", "call the bank"). Tick them off; they also show on Today.</p>`],
+    ['notes', '✏️ Notes', `<p>An inbox for anything you don't want to decide about yet. Notes can have several lines (<b>Ctrl+Enter</b> adds one). Empty the inbox regularly: send each note <b>→ reference</b>, <b>→ task</b>, <b>→ idea</b> or <b>→ don't forget</b>, or delete it. Notes waiting in the inbox count on the Flapsi meter.</p>`],
+    ['people', '📞 People', `<p>Your phone and e-mail directory, grouped by category, with search. Click a number or address to call or write. Names are suggested in "Who" fields; renaming a person updates their tasks too.</p>`],
+    ['ref', 'ℹ️ Reference', `<p>Information worth keeping: checklists, prices, minutes, the office Wi-Fi code… Each item can belong to a key area or a task and can carry a link. Search covers titles and text.</p>`],
+    ['capture', '＋ Capture', `<p>Press <b>+</b> (or the <b>N</b> key) anywhere to note something in a few seconds: a note, a don't-forget, an idea, a task, a call or an e-mail. Sort it later.</p>`],
+    ['settings', '⚙ Settings and syncing', `
+<ul><li><b>Planning</b>: when your day starts and ends (the time column), the weekly review day, and the Flapsi meter on or off.</li>
+<li><b>📁 Save to a file</b> (Chrome or Edge on a computer): Pušis writes every change to one file. Put it in your Google Drive for desktop, OneDrive or Dropbox folder to have it on your other computers. <b>📁 allow</b> means the browser wants your OK again: one click.</li>
+<li><b>☁ Google Drive</b> (any browser, also phones): signs in with Google and keeps <code>pusis-data.json</code> in your Drive. <b>☁ connect</b> appears when the sign-in expires (about hourly): one click.</li>
+<li><b>Conflict</b> (📁 or ☁): the copy was changed on another device. Nothing is overwritten until you choose which copy to keep; the newer one is suggested.</li>
+<li><b>Backup</b>: export / import a JSON file; load demo data; erase everything.</li></ul>`],
+    ['keys', 'Shortcuts and status', `
+<ul><li><b>N</b>: capture · <b>Ctrl+Enter</b>: add a note · <b>Esc</b>: close a window.</li>
+<li><b>Flapsi n</b> (header): loose things, meaning notes in the inbox plus late tasks and activities. Green up to 7, amber 8–10, red over 10.</li>
+<li>Dates are always written <code>YYYY-MM-DD</code>, times 24 h.</li></ul>`],
+  ],
+  method: [
+    ['tree', 'The pine tree', `
+<p>The method behind Pušis comes from the <b>Time Manager</b> system (Claus Møller, TMI, 1975). It pictures your life and work as a <b>pine tree</b>:</p>
+<ul><li><b>Trunk</b>: you and your <b>goals</b>, private and professional.</li>
+<li><b>Branches</b>: your <b>key areas</b>, the main fields where you put your effort to reach those goals.</li>
+<li><b>Twigs</b>: the <b>tasks</b> in each key area.</li>
+<li><b>Needles</b>: the <b>activities</b>, all the practical details that finish a task.</li></ul>
+<p>Most people see their work as a heap of loose needles. Hang every needle on the tree and the heap becomes a shape you can see at a glance.</p>`],
+    ['overview', 'Overview: avoid "Flapsi Hapsi"', `
+<p>The mind copes badly with more than about ten open things at once. Loose papers, half-remembered promises and an overflowing inbox keep it busy, and the result is tiredness, stress and decisions made by whatever shouts loudest. TMI called this state <b>Flapsi Hapsi</b>.</p>
+<p>The cure is structure: put every item in its place on the tree, so you know what is done, what must be done and what can wait. Then your head is free for the work itself. That is what the Flapsi meter in the header reminds you of.</p>`],
+    ['results', 'Results: goals → tasks → time', `
+<p>Three steps turn intentions into results:</p>
+<ol><li><b>Know your goals</b>, and keep them in sight. Out of sight, out of mind.</li>
+<li><b>Decide the tasks</b> that lead to them. A good task list is <i>complete</i>, <i>clear</i> (grouped by key area), <i>specific</i> (what, who, when, how much) and <i>practical</i> (always at hand).</li>
+<li><b>Spend your time on those tasks.</b> Every day has <b>booked</b> time (meetings, appointments) and <b>available</b> time. Booked time is already decided; how you use the <b>available</b> time decides whether you reach your goals.</li></ol>
+<p>Plan from your goals, not only from other people's demands.</p>`],
+    ['goals', 'Good goals', `
+<p>A goal is a <b>result you want</b>: a situation you will be in, not an activity. "Sell more" is a wish; "20% more sales than last year by 15 December" is a goal.</p>
+<p>The five rules (tick them in the goal form): <b>clearly defined · realistic · challenging · time-limited · worthwhile</b>.</p>
+<p>Have both small and large, short and long, material and non-material goals. Check them regularly and adjust the long-term ones at least once a year. Signing a goal is a small contract with yourself, like painting the first eye of a Daruma doll; the second eye comes when you reach it.</p>
+<p>Ideas for life goals: health · education and skills · job and career · money and possessions · relationships · values · use of time.</p>`],
+    ['areas', 'Key areas', `
+<p>Almost everything you do, at work and at home, fits into <b>nine or fewer</b> key areas. More than that and you lose the overview, so combine related ones (family and friends, for example).</p>
+<p>Two ways to find them:</p>
+<ul><li><b>From your activities</b>: What do I do? Which tasks do I have, or would I like? Group them and give each group a name.</li>
+<li><b>From your goals</b>: Which goals must I reach, and what is expected of me? Which areas need my effort for that?</li></ul>
+<p>Some people also keep process areas such as <i>Learning</i> or <i>Follow-up</i>.</p>`],
+    ['tasks', 'Tasks and activities', `
+<p>A task is the name for the work that leads to one result. Define it as <b>what</b> (start with a verb: prepare, finish, reduce…), <b>which result</b>, <b>who</b> (you, together, or delegated) and <b>by when</b>. A task without a deadline is easily put off.</p>
+<p>Some tasks are <b>ongoing</b> (budget, staff, regular meetings) and stay while the key area exists. Others are <b>temporary</b>: they end when their activities are done.</p>
+<p>Split a task into <b>activities</b> when it involves several steps or people: what is to be done, by whom and when. The activity list also works as a checklist, meeting minutes and a follow-up list.</p>
+<p>A couple of times a year, take stock: Which tasks matter most for my goals? What is short-term, what long-term? Is the list complete? How could I do it more efficiently? What could I delegate?</p>`],
+    ['elephant', 'The elephant technique', `
+<p>Some tasks are <b>elephants</b>: big, slow, easy to postpone. Learning a language, writing a book, developing a product. Waiting until your mouth is big enough means no elephant is ever eaten.</p>
+<p>Make the elephant smaller instead: cut it into <b>bite-size pieces</b> and eat one bite every day, on top of your routine. Ten words a day is 3,650 words a year. Work on no more than one or two elephants at a time, and finish them.</p>
+<p>Pušis gives the elephant its own line on Today and in Plan tomorrow.</p>`],
+    ['capture', "Don't forget, ideas and notes", `
+<ul><li><b>Don't forget</b>: small one-off tasks with no follow-up. Write them down the moment they come up, instead of on scraps of paper.</li>
+<li><b>Ideas</b> are lost if not written down at once. Keep an ideas bank, review it regularly, turn good ideas into tasks and tick off the rest.</li>
+<li><b>Notes</b> are a waiting room until each item finds its home.</li></ul>`],
+    ['rhythm', 'The planning rhythm', `
+<ul><li><b>Every evening</b>: plan tomorrow (booked time first, then the right tasks for the available time).</li>
+<li><b>Every week</b>, on your review day: empty the inbox, check goals and key areas, place the elephant bites, plan the week.</li>
+<li><b>Every month and year</b>: look ahead; put fixed dates (birthdays, holidays, tax) in first.</li></ul>
+<p>Write "in pencil": plans change, and changing them is part of planning.</p>`],
+    ['growth', 'Maintenance or development?', `
+<p>A <b>maintenance</b> person spends all their time keeping things as they are, driven by phone calls, e-mails and interruptions. A year later nothing has changed.</p>
+<p>A <b>development</b> person handles the daily work too, but also saves some time for things that move them forward, a bite of an elephant every day, guided by their goals. A year later they have grown.</p>
+<p>There is no single right way to use the system. The way that works for you is right.</p>
+<p class="m">Source: the Time Manager® philosophy of Time Manager International A/S (TMI), described here in our own words. Pušis is independent and not affiliated with TMI.</p>`],
+  ],
+};
+V.help = () => {
+  const tab = U.helpTab || 'app', list = HELP[tab];
+  return `<h2>❓ Help</h2>
+  <div class="steps"><button class="${tab === 'app' ? 'on' : ''}" data-a="helpTab" data-t="app">Using Pušis</button><button class="${tab === 'method' ? 'on' : ''}" data-a="helpTab" data-t="method">The method</button></div>
+  <div class="helpgrid"><div class="card helptoc">${list.map(([k, t]) => `<div><button class="link" data-a="helpGo" data-k="${k}">${t}</button></div>`).join('')}</div>
+  <div class="col help">${list.map(([k, t, body]) => `<div class="card" id="h-${k}"><h3 style="font-size:14px;color:var(--fg);text-transform:none;letter-spacing:0">${t}</h3>${body}</div>`).join('')}</div></div>`;
+};
+
 V.settings = () => {
   const st = set(), sel = (k, opts, v) => `<select data-c="setting" data-k="${k}" style="width:auto">${opts.map(([a, b]) => `<option value="${a}" ${String(a) === String(v) ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select>`;
   const pill = id => esc(document.getElementById(id)?.textContent || '');
@@ -595,6 +716,10 @@ const A = {
   cloud: () => !SC.connected || G.state === 'connect' ? gConnect() : gSync(),
   fpill: () => fSync(true),
   menu: () => { U.view = 'settings'; render(); },
+  help: () => { const from = U.view; U.view = 'help'; U.helpTab = 'app'; render(); // open at the section for the page you came from
+    const el = document.getElementById('h-' + (['goals', 'areas', 'today', 'plan', 'dont', 'notes', 'people', 'ref', 'settings'].includes(from) ? from : 'start')); if (el) el.scrollIntoView(); },
+  helpTab: o => { U.helpTab = o.t; render(); window.scrollTo(0, 0); },
+  helpGo: o => { const el = document.getElementById('h-' + o.k); if (el) el.scrollIntoView({ behavior: 'smooth' }); },
   fileNew: () => fPick(true),
   fileOpen: () => fPick(false),
   fileStop: () => { clearTimeout(FS.timer); FS.handle = null; idb('del'); fpill(''); toast('Stopped — the file stays where it is'); render(); },
