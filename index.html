@@ -71,7 +71,7 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo">🌲 Pušis <span class="m">prototype v3</span></span>
+ <span class="logo">🌲 Pušis <span class="m">prototype v4</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
@@ -104,16 +104,22 @@ function save() { // only real data changes count: they get a timestamp and go t
 }
 // ---------- Google Drive sync (optional, plan_v5 §3a) ----------
 // The access token lives in memory only; client ID, file id and last remote time stay in this browser (SYNC key).
+// The app owner's OAuth Web Client ID (public, not a secret; see GOOGLE_SETUP.md). Empty = each user pastes their own in ⋯.
+const BUILT_IN_CLIENT_ID = '793121127727-817at62flmsl0rtoqe1ccss6pf0kngub.apps.googleusercontent.com';
 const SYNC = 'pusis.sync', FILE = 'pusis-data.json', SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRV = 'https://www.googleapis.com/drive/v3/files', UPL = 'https://www.googleapis.com/upload/drive/v3/files';
 const G = { token: null, exp: 0, state: '', timer: null, client: null, clientFor: '' };
 let SC; try { SC = JSON.parse(localStorage.getItem(SYNC)) || {}; } catch (e) { SC = {}; }
 const scSave = () => { try { localStorage.setItem(SYNC, JSON.stringify(SC)); } catch (e) {} };
 const live = () => !!G.token && Date.now() < G.exp;
+const clientId = () => SC.clientId || BUILT_IN_CLIENT_ID;
+const canGoogle = () => !!clientId() && location.protocol === 'https:';
 const fmtWhen = s => s ? new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : 'unknown time';
 function cloud(state, note = '') {
   G.state = state; const el = document.getElementById('cloud');
-  el.hidden = !SC.connected;
+  el.hidden = !SC.connected && !canGoogle();
+  el.style.opacity = SC.connected ? '' : .6;
+  if (!SC.connected) { el.textContent = '☁ Drive'; el.className = 'pill clk'; el.title = 'Save to your Google Drive: click to connect'; return; }
   el.textContent = { saved: `☁ saved ${note}`, saving: '☁ saving…', connect: '☁ connect', conflict: '☁ conflict', error: '☁ error' }[state] || '☁';
   el.className = 'pill clk' + (state === 'conflict' || state === 'error' ? ' red' : state === 'connect' ? ' amber' : '');
   el.title = { connect: 'Click to sign in to Google again', conflict: 'Drive copy changed elsewhere: click to choose which copy to keep', error: 'Click to retry' }[state] || 'Click to sync now';
@@ -124,18 +130,17 @@ function gScript() {
     s.onload = ok; s.onerror = () => no(new Error('Could not load Google sign-in')); document.head.append(s); });
 }
 async function gConnect() {
-  if (!SC.clientId) { toast('Paste your Google Client ID first (⋯)'); return; }
-  if (location.protocol === 'file:') { toast('Google needs the web version (https), not a file opened from disk'); return; }
-  if (!window.google?.accounts?.oauth2) { // the sign-in popup must open on a click, so load first and ask for one more click
-    try { await gScript(); } catch (e) { toast(e.message); return; }
-    SC.connected = true; scSave(); cloud('connect'); toast('Google sign-in is ready — click ☁ connect'); return;
-  }
-  if (G.clientFor !== SC.clientId) {
-    G.client = google.accounts.oauth2.initTokenClient({ client_id: SC.clientId, scope: SCOPE, callback: async r => {
+  if (!clientId()) { toast('No Google Client ID — add one in ⋯ (see GOOGLE_SETUP.md)'); return; }
+  if (location.protocol !== 'https:') { toast('Google needs the web version (https), not a file opened from disk'); return; }
+  try { await gScript(); } catch (e) { toast(e.message); return; }
+  if (G.clientFor !== clientId()) {
+    G.client = google.accounts.oauth2.initTokenClient({ client_id: clientId(), scope: SCOPE,
+      error_callback: e => { if (SC.connected) cloud('connect'); toast(e.type === 'popup_failed_to_open' ? 'The browser blocked the Google window — click ☁ again' : 'Google sign-in was closed'); },
+      callback: async r => {
       if (r.error) { cloud('connect'); toast('Google: ' + r.error); return; }
       G.token = r.access_token; G.exp = Date.now() + ((r.expires_in || 3600) - 60) * 1000;
       SC.connected = true; scSave(); await gSync(); } });
-    G.clientFor = SC.clientId;
+    G.clientFor = clientId();
   }
   G.client.requestAccessToken();
 }
@@ -446,11 +451,11 @@ function setTask(t, v) {
 // ---------- actions ----------
 const A = {
   go: o => { U.view = o.v; U.step = 1; render(); },
-  cloud: () => G.state === 'connect' ? gConnect() : gSync(),
-  menu: () => form('Backup, data and Google', [{ k: 'clientId', label: 'Google Client ID (optional — see GOOGLE_SETUP.md in the repo)', value: SC.clientId || '', ph: '….apps.googleusercontent.com' }],
+  cloud: () => !SC.connected || G.state === 'connect' ? gConnect() : gSync(),
+  menu: () => form('Backup, data and Google', [{ k: 'clientId', label: BUILT_IN_CLIENT_ID ? 'Own Google Client ID (optional — leave empty to use the built-in one)' : 'Google Client ID (see GOOGLE_SETUP.md in the repo)', value: SC.clientId || '', ph: '….apps.googleusercontent.com' }],
     v => { SC.clientId = v.clientId; scSave(); }, [
     ['Connect Google Drive', v => { SC.clientId = v.clientId; scSave(); gConnect(); }],
-    ...(SC.connected ? [['Sync now', () => { gSync(); }], ['Disconnect Google', () => { if (G.token && window.google) google.accounts.oauth2.revoke(G.token, () => {}); G.token = null; SC = { clientId: SC.clientId }; scSave(); cloud(''); toast('Disconnected — the Drive file stays in your Drive'); }]] : []),
+    ...(SC.connected ? [['Sync now', () => { gSync(); }], ['Disconnect Google', () => { if (G.token && window.google) google.accounts.oauth2.revoke(G.token, () => {}); G.token = null; SC = SC.clientId ? { clientId: SC.clientId } : {}; scSave(); cloud(''); toast('Disconnected — the Drive file stays in your Drive'); }]] : []),
     ['Export JSON backup', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' })); a.download = `pusis-backup-${TODAY}.json`; a.click(); return false; }],
     ['Import JSON…', () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const x = JSON.parse(await i.files[0].text()); if (!x.areas || !x.tasks) throw 0; if (confirm('Replace all data in this browser with the backup?' + driveNote())) { S = x; document.getElementById('dlg').close(); render(); toast('Backup loaded'); } } catch (e) { toast('Not a Pušis backup file'); } }; i.click(); return false; }],
     ['Load demo data', () => { if (confirm('Replace all data in this browser with demo data?' + driveNote())) { S = demo(); toast('Demo data loaded'); } }],
@@ -617,7 +622,7 @@ function selfTest() {
   console.log('selftest done');
 }
 if (location.hash === '#test') selfTest();
-if (SC.connected) { cloud('connect'); if (SC.clientId && location.protocol === 'https:') gScript().catch(() => {}); }
+cloud(SC.connected ? 'connect' : '');
 render();
 </script>
 </body></html>

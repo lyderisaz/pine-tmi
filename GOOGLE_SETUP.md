@@ -17,6 +17,8 @@ It takes about 10 minutes and costs nothing. Google renames console menus now an
 **APIs & Services → Library** → search **Google Drive API** → **Enable**.
 (Later phases will also use *Google Calendar API* and *People API*. You don't need them now.)
 
+> **Google Workspace account, or no "Google Auth Platform" menu?** Use the older screens instead: **APIs & Services → OAuth consent screen** for steps 3–4 and **APIs & Services → Credentials → Create credentials → OAuth client ID** for step 5. With Workspace you can choose user type **Internal**: only accounts in your organization can sign in, and no test users or Google review are needed.
+
 ### 3. Consent screen (Google Auth Platform)
 1. **Google Auth Platform → Branding**: app name `Pušis`, your e-mail as the support and developer contact → Save.
 2. **Audience**: user type **External**, publishing status **Testing** → **Add users** → add your own Gmail address.

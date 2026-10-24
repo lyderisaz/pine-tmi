@@ -105,7 +105,7 @@ function save() { // only real data changes count: they get a timestamp and go t
 // ---------- Google Drive sync (optional, plan_v5 §3a) ----------
 // The access token lives in memory only; client ID, file id and last remote time stay in this browser (SYNC key).
 // The app owner's OAuth Web Client ID (public, not a secret; see GOOGLE_SETUP.md). Empty = each user pastes their own in ⋯.
-const BUILT_IN_CLIENT_ID = '';
+const BUILT_IN_CLIENT_ID = '793121127727-817at62flmsl0rtoqe1ccss6pf0kngub.apps.googleusercontent.com';
 const SYNC = 'pusis.sync', FILE = 'pusis-data.json', SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRV = 'https://www.googleapis.com/drive/v3/files', UPL = 'https://www.googleapis.com/upload/drive/v3/files';
 const G = { token: null, exp: 0, state: '', timer: null, client: null, clientFor: '' };

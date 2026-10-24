@@ -2,9 +2,10 @@
 // Tests the optional Google Drive sync against a fake Google (sign-in stub + in-memory Drive). No real Google account is used.
 const [, , pwDir, file] = process.argv;
 const { chromium } = require(pwDir); const fs = require('fs');
-const raw = fs.readFileSync(file, 'utf8');
-const withId = raw.replace("const BUILT_IN_CLIENT_ID = '';", "const BUILT_IN_CLIENT_ID = 'built-in.apps.googleusercontent.com';");
-if (withId === raw) throw new Error('BUILT_IN_CLIENT_ID line not found');
+const src = fs.readFileSync(file, 'utf8'), ID_LINE = /const BUILT_IN_CLIENT_ID = '[^']*';/;
+if (!ID_LINE.test(src)) throw new Error('BUILT_IN_CLIENT_ID line not found');
+const withId = src.replace(ID_LINE, "const BUILT_IN_CLIENT_ID = 'built-in.apps.googleusercontent.com';");
+const raw = src.replace(ID_LINE, "const BUILT_IN_CLIENT_ID = '';"); // the app without a built-in ID
 const problems = []; const check = (ok, what) => { if (!ok) problems.push(what); };
 const drive = { files: {}, n: 0, calls: [] };
 const stamp = () => new Date(Date.now() + drive.n++).toISOString();
