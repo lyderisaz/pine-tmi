@@ -20,15 +20,15 @@ button:hover { border-color:var(--fg); } button.pri { background:var(--fg); colo
 button.link { border:none; background:none; padding:0 2px; color:var(--info); text-decoration:underline; }
 input, select, textarea { background:var(--paper); border:1px solid var(--line); border-radius:5px; padding:4px 7px; width:100%; }
 input[type=checkbox] { width:auto; }
-header { position:sticky; top:0; z-index:5; background:var(--paper); border-bottom:1px solid var(--soft); padding:8px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+header { position:sticky; top:0; z-index:5; background:var(--paper); border-bottom:1px solid var(--soft); padding:8px 12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .logo { font-weight:700; }
-nav { display:flex; gap:8px; flex-wrap:wrap; }
+nav { display:flex; gap:5px; flex-wrap:wrap; }
 .grp { display:flex; gap:2px; align-items:center; border-radius:16px; padding:2px 5px; }
 .grp i { font-style:normal; font-size:10px; font-weight:700; letter-spacing:.06em; margin-right:3px; }
 .grp.what { background:color-mix(in srgb, var(--what) 12%, transparent); } .grp.what i { color:var(--what); }
 .grp.when { background:var(--free); } .grp.when i { color:var(--muted); }
 .grp.info { background:color-mix(in srgb, var(--info) 12%, transparent); } .grp.info i { color:var(--info); }
-.tab { border:1px solid transparent; background:none; border-radius:14px; padding:2px 6px; font-size:13px; }
+.tab { border:1px solid transparent; background:none; border-radius:14px; padding:2px 5px; font-size:12.5px; }
 .tab.on { border-color:var(--fg); font-weight:600; background:var(--paper); }
 .sp { flex:1; }
 .pill { border:1.5px solid var(--ok); color:var(--ok); border-radius:14px; padding:1px 9px; font-size:12px; }
@@ -79,7 +79,7 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo" title="Pušis prototype v10">🌲 Pušis <span class="m" style="font-size:10px">v10</span></span>
+ <span class="logo" title="Pušis prototype v11">🌲 Pušis <span class="m" style="font-size:10px">v11</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
@@ -302,7 +302,7 @@ const dayOfYear = s => Math.round((s2d(s) - new Date(s2d(s).getFullYear(), 0, 1)
 const dayName = s => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][s2d(s).getDay()]} ${s}`;
 const stamp = (d = new Date()) => `${d2s(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const hh = h => `${pad(Math.floor(h))}:${h % 1 ? '30' : '00'}`;
-const DEFAULTS = { dayStart: 8, dayEnd: 21, reviewDay: 5, flapsi: true, ledger: false, covey: false, urgentDays: 3 }; // paper daily plan: 08–21; review day 5 = Friday (plan_v3 D3)
+const DEFAULTS = { dayStart: 8, dayEnd: 21, reviewDay: 5, flapsi: true, ledger: true, covey: true, urgentDays: 3 }; // lenses on by default (user request, v11) // paper daily plan: 08–21; review day 5 = Friday (plan_v3 D3)
 const set = () => ({ ...DEFAULTS, ...(S.settings || {}) });
 const win = () => [set().dayStart, set().dayEnd];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -617,6 +617,7 @@ V.settings = () => {
   <div class="card"><h3>Backup and data</h3>
     <div class="row"><span>Backup file (JSON)</span><span><button data-a="exportJson">export</button> <button data-a="importJson">import…</button></span></div>
     <div class="row"><span>Demo data <span class="m">replaces your data</span></span><button data-a="loadDemo">load demo</button></div>
+    <div class="m" style="margin:4px 0">Settings on this page are kept when you load demo data or erase.</div>
     <div class="row"><span class="late">Erase all data in this browser</span><button data-a="eraseAll">erase…</button></div></div>
   </div>`;
 };
@@ -854,9 +855,10 @@ const A = {
   gConnectBtn: () => gConnect(),
   gDisconnect: () => { if (G.token && window.google) google.accounts.oauth2.revoke(G.token, () => {}); G.token = null; SC = SC.clientId ? { clientId: SC.clientId } : {}; scSave(); cloud(''); toast('Disconnected — the Drive file stays in your Drive'); render(); },
   exportJson: () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' })); a.download = `pusis-backup-${TODAY}.json`; a.click(); },
-  importJson: () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const x = JSON.parse(await i.files[0].text()); if (!x.areas || !x.tasks) throw 0; if (confirm('Replace all data in this browser with the backup?' + driveNote())) { S = x; render(); toast('Backup loaded'); } } catch (e) { toast('Not a Pušis backup file'); } }; i.click(); },
-  loadDemo: () => { if (confirm('Replace all data in this browser with demo data?' + driveNote())) { S = demo(); render(); toast('Demo data loaded'); } },
-  eraseAll: () => { if (confirm('Erase everything in this browser? Export a backup first if you need it.' + driveNote())) { S = seed(); render(); toast('Erased'); } },
+  importJson: () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const x = JSON.parse(await i.files[0].text()); if (!x.areas || !x.tasks) throw 0; if (confirm('Replace all data in this browser with the backup?' + driveNote())) { x.settings ||= S.settings; S = x; render(); toast('Backup loaded'); } } catch (e) { toast('Not a Pušis backup file'); } }; i.click(); },
+  // settings are your preferences, not data: demo and erase keep them
+  loadDemo: () => { if (confirm('Replace all data in this browser with demo data?' + driveNote())) { const keep = S.settings; S = demo(); S.settings = keep; render(); toast('Demo data loaded'); } },
+  eraseAll: () => { if (confirm('Erase everything in this browser? Export a backup first if you need it.' + driveNote())) { const keep = S.settings; S = seed(); S.settings = keep; render(); toast('Erased'); } },
   capture: () => form('Capture', [
     { k: 'type', label: 'Type', type: 'select', value: 'note', options: [['note', 'Note → Notes inbox'], ['minor', "Don't forget"], ['idea', 'Idea'], ['task', 'Task'], ['call', 'Call'], ['email', 'E-mail']] },
     { k: 'text', label: 'Text', req: true, ph: 'Type and press Enter' },
