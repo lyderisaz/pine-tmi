@@ -1,0 +1,7 @@
+# Publish only what the app loads.
+.git
+.wrangler
+.gitignore
+.assetsignore
+wrangler.toml
+*.md
