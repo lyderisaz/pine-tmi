@@ -30,7 +30,7 @@ It takes about 10 minutes and costs nothing. Google renames console menus now an
 - Application type: **Web application**
 - Name: `Pusis web`
 - **Authorized JavaScript origins**: add
-  - `https://lyderisaz.github.io` (the live app; use your own GitHub Pages origin if you forked it)
+  - `https://pine-tmi.inventship.workers.dev` (the live app; use your own origin if you forked it)
   - `http://localhost:8000` (optional, for testing a local copy served with `python -m http.server 8000`)
 - Authorized redirect URIs: leave empty.
 

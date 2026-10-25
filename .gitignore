@@ -6,6 +6,8 @@
 !/LICENSE
 !/index.html
 !/GOOGLE_SETUP.md
+!/wrangler.toml
+!/.assetsignore
 !/prototype/
 /prototype/*
 !/prototype/pusis_proto_v2.html
