@@ -1,6 +1,8 @@
 # Pušis 🌲 — A pine-tree planner
 
-**Pušis** helps you turn a busy life into a clear, connected plan. It is a privacy-friendly browser app inspired by the classic **Time Manager** system.
+**Pušis** (Lithuanian for *pine*) helps you turn a busy life into a clear, connected plan. It is a privacy-friendly browser app inspired by the classic **Time Manager** system.
+
+![Today in Pušis: a time column with a weekly rhythm, today's tasks, activities and a Don't forget list](docs/images/today.png)
 
 > **Status: phase 0 prototype** — the app works, but expect changes.
 
@@ -26,13 +28,23 @@ Every activity remains attached to the larger plan, so the important work stays 
 ## What you can do
 
 - Set personal and work goals with milestones and deadlines
-- Organize work in projects and key areas
+- Organize work in key areas and projects: at most three projects are active at a time, while planned, maintained, paused and closed ones stay in view
 - Plan a day using the elephant technique and `Plan tomorrow`
 - Capture tasks, ideas, calls, e-mails, notes, and people
-- Repeat weekly commitments with the weekly rhythm
+- Repeat weekly commitments with the weekly rhythm: busy time (sleep, sport, lunch) or time kept free for one key area's tasks
 - Review planned versus actual time with the optional time ledger
 - Prioritize open tasks with the optional Covey matrix
 - Save locally, export a backup, save to a file, or sync with your Google Drive
+
+## A look inside
+
+| Key areas: area, task sheet and activity sheet side by side | Plan tomorrow: a task placed inside time kept for its key area |
+|---|---|
+| ![Key areas with the task sheet and the activity sheet of the selected task](docs/images/key-areas.png) | ![Plan tomorrow with tasks to pick and tomorrow's time column](docs/images/plan-tomorrow.png) |
+| **Projects: at most three active, the rest in view** | **On a phone** |
+| ![Projects grouped by status, each with its way to money and next step](docs/images/projects.png) | <img src="docs/images/phone.png" alt="Today on a phone" width="260"> |
+
+The pictures use the built-in demo data (**⚙ → load demo**). `node docs/screenshots.js <playwright module path> <absolute path to index.html>` makes them again.
 
 ## Why try Pušis?
 
@@ -45,10 +57,11 @@ Every activity remains attached to the larger plan, so the important work stays 
 ## How to use it
 
 1. Add your key areas and goals.
-2. Create projects and tasks beneath the relevant key area.
-3. Turn tasks into concrete activities in **Today** or **Plan tomorrow**.
-4. Record what was completed and review the time ledger and balance views.
-5. Export a backup from **Settings** to protect your plans.
+2. Add tasks on each key area's task sheet, and projects in **Projects**.
+3. Split a task into concrete activities on its activity sheet (**Key areas**), and set your weekly rhythm in **⚙ Settings**.
+4. Each evening, pick tomorrow's tasks and times in **Plan tomorrow**; work from **Today**.
+5. Record what was completed and review the time ledger and balance views.
+6. Export a backup from **Settings** to protect your plans.
 
 Open **? Help** in the app for contextual instructions and a fuller explanation of the method.
 
@@ -70,13 +83,13 @@ The current app is a self-contained HTML file at [`index.html`](index.html). The
 
 Built-in self-check: open the app with `#test` at the end of the address and inspect the browser console.
 
-Test scripts require [Playwright](https://playwright-playwright-link-placeholder.invalid):
+Test scripts require [Playwright](https://playwright.dev):
 
 ```bash
-node prototype/proto_test_v14.js <playwright module path> <absolute path to pusis_proto_v14.html> <screenshot folder>
-node prototype/sync_test_v14.js <playwright module path> <absolute path to pusis_proto_v14.html>
-node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v14.html>
-node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v14.html>
+node prototype/proto_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html> <screenshot folder>
+node prototype/sync_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html>
+node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
+node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
 ```
 
 The sync, Drive, and file tests use fake services, so no real account or file is needed.

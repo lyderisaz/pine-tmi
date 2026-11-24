@@ -53,6 +53,7 @@ h2 { margin:0 0 10px; font-size:18px; } h3 { margin:0 0 6px; font-size:12px; tex
 .hours .h { color:var(--muted); text-align:right; padding-top:3px; }
 .slot { min-height:26px; border-radius:4px; padding:3px 7px; border:1px dashed var(--line); color:var(--muted); cursor:pointer; }
 .slot.booked { background:var(--booked); color:#fff; border:none; } .slot.planned { background:var(--free); color:var(--fg); border:none; border-left:4px solid var(--info); }
+.slot.areatime { background:var(--paper); color:var(--fg); border:1px solid var(--line); border-left:4px solid var(--info); }
 .slot.cont { opacity:.55; }
 .strip { display:grid; grid-template-columns:repeat(10, minmax(0, 1fr)); gap:4px; font-size:11px; text-align:center; }
 .strip label { border:1px solid var(--soft); border-radius:4px; padding:3px 2px; display:block; } .strip input { text-align:center; padding:1px; font-size:12px; }
@@ -79,7 +80,7 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo" title="Pušis prototype v14">🌲 Pušis <span class="m" style="font-size:10px">v14</span></span>
+ <span class="logo" title="Pušis prototype v15">🌲 Pušis <span class="m" style="font-size:10px">v15</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
@@ -473,17 +474,19 @@ const ruleOn = (r, s) => !r.paused && r.days.includes(s2d(s).getDay()) && s >= r
 const blocksOn = s => {
   const own = S.blocks.filter(b => b.date === s), skip = S.days[s]?.skip || [];
   const rhythm = (S.rules || []).filter(r => ruleOn(r, s) && !skip.includes(r.id) && !own.some(b => b.ruleId === r.id))
-    .map(r => ({ id: -r.id, date: s, start: r.start, end: r.end, kind: 'booked', title: r.title, area: r.area, ruleId: r.id, rhythm: true }));
+    .map(r => ({ id: -r.id, date: s, start: r.start, end: r.end, kind: r.kind === 'area' ? 'areatime' : 'booked', title: r.title, area: r.area, ruleId: r.id, rhythm: true }));
   return [...own, ...rhythm].sort((a, b) => a.start - b.start);
 };
-const ruleDays = r => r.days.length === 7 ? 'every day' : WEEK.filter(d => r.days.includes(d)).map(d => WEEKDAYS[d].slice(0, 3)).join(' ');
+// v15: a rule is either busy time (sleep, sport, lunch) or time for one key area's tasks (sales, production), which stays free for them
+const RKIND = [['area', 'time for this key area\'s tasks'], ['booked', 'busy (sleep, sport, lunch…)']];
+const ruleDays = r =>r.days.length === 7 ? 'every day' : WEEK.filter(d => r.days.includes(d)).map(d => WEEKDAYS[d].slice(0, 3)).join(' ');
 // ---------- projects (v13): at most 3 active, so attention stays on what earns ----------
 const ACTIVE_MAX = 3;
 const PSTATUS = [['active', '▶ active'], ['planned', '◌ planned, not started'], ['maintained', '◐ maintained'], ['paused', '⏸ paused'], ['closed', '✓ closed']];
 const project = pid => (S.projects || []).find(p => p.id === +pid);
 const canActivate = p => (S.projects || []).filter(x => x.status === 'active' && x !== p).length < ACTIVE_MAX;
 const projTag = t => { const p = project(t.projectId); return p ? ` <span class="m" title="project">📁 ${esc(p.name)}</span>` : ''; };
-const availableH = s => { const [a, z] = win(); return (z - a) - blocksOn(s).reduce((n, b) => n + Math.max(0, Math.min(b.end, z) - Math.max(b.start, a)), 0); };
+const availableH = s => { const [a, z] = win(); return (z - a) - blocksOn(s).filter(b => b.kind !== 'areatime').reduce((n, b) => n + Math.max(0, Math.min(b.end, z) - Math.max(b.start, a)), 0); };
 const fmtH = h => `${Math.floor(h)} h${h % 1 ? ' 30' : ''}`;
 
 // items shown on a date (K2: due/overdue appear automatically, plus what Plan tomorrow put there)
@@ -549,8 +552,11 @@ V.matrix = () => {
 const LOST_WHY = ['waiting', 'interruptions', 'travel', 'empty meeting', 'unplanned request', 'tiredness', 'other'];
 const ledgerOn = () => !!set().ledger;
 function areaMinutes(s) { // plan = blocks of the day; actual = your correction, else the plan
-  const d = day(s), plan = {};
-  for (const b of blocksOn(s)) { const k = b.area || 'none'; plan[k] = (plan[k] || 0) + Math.round(Math.max(0, Math.min(b.end, win()[1]) - Math.max(b.start, win()[0])) * 60); }
+  const d = day(s), plan = {}, bs = blocksOn(s), [W0, W1] = win();
+  for (const b of bs.filter(x => x.kind !== 'areatime')) { const k = b.area || 'none'; plan[k] = (plan[k] || 0) + Math.round(Math.max(0, Math.min(b.end, W1) - Math.max(b.start, W0)) * 60); }
+  // area time counts only where nothing else is planned, so a task inside it is counted once, as the task
+  for (let h = W0; h < W1; h += 0.5) { const at = bs.find(x => x.kind === 'areatime' && x.start <= h && h < x.end);
+    if (at && !bs.some(x => x.kind !== 'areatime' && x.start <= h && h < x.end)) { const k = at.area || 'none'; plan[k] = (plan[k] || 0) + 30; } }
   const actual = {}; for (const k of [1, 2, 3, 4, 5, 6, 7, 8, 9, 'none']) actual[k] = d.areaMin[k] ?? plan[k] ?? 0;
   return { plan, actual };
 }
@@ -758,7 +764,7 @@ V.settings = () => {
     <div class="row"><span>Covey matrix <span class="m">(important × urgent quadrants, 🧭 Matrix, Q2 share)</span></span><input type="checkbox" data-c="setting" data-k="covey" ${st.covey ? 'checked' : ''}></div>
     ${st.covey ? `<div class="row"><span>"Urgent" means due within</span>${sel('urgentDays', [1, 2, 3, 5, 7, 14].map(d => [d, d + (d === 1 ? ' day' : ' days')]), st.urgentDays)}</div>` : ''}</div>
   <div class="card"><h3>🔁 Weekly rhythm <span class="m" style="text-transform:none;letter-spacing:0">booked blocks that repeat: sleep, sport, sales hours…</span></h3>
-    ${S.rules.filter(r => !r.to || r.to >= TODAY).sort((a, b) => a.start - b.start).map(r => `<div class="row"><span class="grow ${r.paused ? 'done' : ''}"><b>${hh(r.start)}–${hh(r.end)}</b> ${esc(r.title)} <span class="m">· ${ruleDays(r)}${area(r.area) ? ' · ' + esc(`${r.area} ${area(r.area).name}`) : ''}${r.paused ? ' · paused' : ''}${r.from > TODAY ? ' · from ' + r.from : ''}</span></span><button data-a="ruleEdit" data-id="${r.id}">edit</button></div>`).join('') || '<div class="empty">No rhythm yet.</div>'}
+    ${S.rules.filter(r => !r.to || r.to >= TODAY).sort((a, b) => a.start - b.start).map(r => `<div class="row"><span class="grow ${r.paused ? 'done' : ''}"><b>${hh(r.start)}–${hh(r.end)}</b> ${esc(r.title)} <span class="m">· ${r.kind === 'area' ? 'time for tasks · ' : ''}${ruleDays(r)}${area(r.area) ? ' · ' + esc(`${r.area} ${area(r.area).name}`) : ''}${r.paused ? ' · paused' : ''}${r.from > TODAY ? ' · from ' + r.from : ''}</span></span><button data-a="ruleEdit" data-id="${r.id}">edit</button></div>`).join('') || '<div class="empty">No rhythm yet.</div>'}
     <div class="btns" style="justify-content:flex-start"><button class="pri" data-a="ruleEdit">+ block</button></div></div>
   ${API ? `<div class="card"><h3>🔄 Shared database <span class="m" style="text-transform:none;letter-spacing:0">all your signed-in devices</span></h3>
     <div class="row"><span>${pill('apill')}</span><button data-a="apill">sync now</button></div></div>` : `
@@ -819,7 +825,7 @@ V.projects = () => {
     return `<div class="card"><h3 style="font-size:14px;color:var(--fg);text-transform:none;letter-spacing:0"><span>📁 ${esc(p.name)}${linkTag(p.link)}</span><button data-a="projectEdit" data-id="${p.id}">edit</button></h3>
       <div class="m">${a ? esc(`${a.slot} ${a.name}`) : 'no key area'}${g ? ` · serves ${esc(`${g.side === 'work' ? 'W' : 'P'}${g.slot} ${g.title}`)}` : ''}${p.decision ? ` · decide by ${esc(p.decision)}` : ''}</div>
       ${p.money ? `<div class="row"><span>💶 ${esc(p.money)}</span></div>` : ''}
-      <div class="row"><span><b>Next:</b> ${p.next ? esc(p.next) : '<span class="late">no next step</span>'}</span></div>
+      <div class="row"><span><b>Next:</b> ${p.next ? esc(p.next) : ['active', 'planned'].includes(p.status) ? '<span class="late">no next step</span>' : '<span class="m">—</span>'}</span></div>
       ${ts.map(t => `<div class="row clk" data-a="taskEdit" data-id="${t.id}"><span class="grow"><span class="code">${tcode(t)}</span>${t.important ? '<span class="imp">!</span>' : ''}${esc(t.what)}${whoTag(t.who)}</span>${dueTag(t.deadline, TODAY)}</div>`).join('') || '<div class="empty">No open tasks.</div>'}</div>`; };
   const group = ([st, label]) => { const ps = S.projects.filter(p => p.status === st);
     return ps.length || st === 'active' ? `<h3 style="margin-top:14px">${label} · ${ps.length}${st === 'active' ? ` / ${ACTIVE_MAX}` : ''}</h3><div class="grid2">${ps.map(card).join('') || '<div class="empty">No active project. Choose the ones closest to money.</div>'}</div>` : ''; };
@@ -864,15 +870,16 @@ V.areas = () => {
 };
 
 function hoursCol(s) {
-  const bs = blocksOn(s); let out = '';
+  const bs = blocksOn(s); let out = '', prev = null;
   const [W0, W1] = win();
   for (let h = W0; h < W1; h += 0.5) {
-    const b = bs.find(x => x.start <= h && h < x.end);
+    // a task or a meeting inside area time is shown over it
+    const b = bs.find(x => x.kind !== 'areatime' && x.start <= h && h < x.end) || bs.find(x => x.start <= h && h < x.end), was = prev; prev = b;
     if (h % 1 && !b) continue; // show half hours only when a block uses them
     if (!b) { out += `<span class="h">${hh(h)}</span><div class="slot" data-a="booked" data-date="${s}" data-h="${h}">available</div>`; continue; }
-    const first = b.start === h || (h === W0 && b.start < h), t = task(b.taskId), a = area(b.area);
+    const first = b !== was, t = task(b.taskId), a = area(b.area);
     const label = b.kind === 'planned' && t ? `<span class="code">${tcode(t)}</span>${esc(t.what)}` : esc(b.title);
-    out += `<span class="h">${hh(h)}</span><div class="slot ${b.kind} ${first ? '' : 'cont'}" data-a="blockEdit" data-id="${b.id}" data-date="${s}" ${b.kind === 'planned' && a ? `style="border-left-color:${a.colour}"` : ''}>${first ? `${b.ruleId ? '🔁 ' : ''}${label} <span class="m" style="color:inherit;opacity:.8">${hh(b.start)}–${hh(b.end)}</span>` : '↳'}</div>`;
+    out += `<span class="h">${hh(h)}</span><div class="slot ${b.kind} ${first ? '' : 'cont'}" data-a="blockEdit" data-id="${b.id}" data-date="${s}" data-h="${h}" ${b.kind === 'areatime' ? 'title="time for this key area\'s tasks"' : ''} ${(b.kind === 'planned' || b.kind === 'areatime') && a ? `style="border-left-color:${a.colour}"` : ''}>${first ? `${b.ruleId ? '🔁 ' : ''}${label} <span class="m" style="color:inherit;opacity:.8">${hh(b.start)}–${hh(b.end)}</span>` : '↳'}</div>`;
   }
   return `<div class="hours">${out}</div>`;
 }
@@ -925,6 +932,9 @@ V.plan = () => {
   } else if (st === 4) {
     const cands = sortCandidates(S.tasks.filter(openTask), s);
     const hours = []; for (let h = win()[0]; h < win()[1]; h += 0.5) hours.push(h);
+    const bsS = blocksOn(s), hourNote = (h, tid) => { // what the hour already holds (not counting this task): area time is where a task of that area fits
+      if (bsS.some(x => x.kind !== 'areatime' && x.taskId !== tid && x.start <= h && h < x.end)) return ' · busy';
+      const at = bsS.find(x => x.kind === 'areatime' && x.start <= h && h < x.end); return at ? ` · ${at.area || ''} ${(area(at.area)?.name || at.title).split(' ')[0]}` : ''; };
     const q2 = coveyOn() ? d.tasks.map(task).filter(t => t && quad(t, s) === 2).length : null;
     const q2note = q2 === null ? '' : `<div class="m" style="margin-bottom:6px">🧭 Q2 tasks picked: <b class="${q2 ? '' : 'late'}">${q2}</b>${q2 ? '' : ' (pick at least one important, not urgent task; that is where results come from)'}</div>`;
     const fx = ledgerOn() && estFactor(S.tasks), est = d.tasks.map(task).filter(Boolean).reduce((n, t) => n + (t.estimate || 0), 0);
@@ -932,7 +942,7 @@ V.plan = () => {
     body = `<div class="grid2"><div class="card"><h3>Pick tasks for ${dayName(s)} <span>available ${fmtH(availableH(s))}</span></h3>${q2note}${warn}
       ${cands.map(t => { const on = d.tasks.includes(t.id), b = S.blocks.find(x => x.date === s && x.taskId === t.id);
         return `<div class="row"><label class="grow" style="display:flex;gap:6px;align-items:baseline"><input type="checkbox" data-c="pick" data-id="${t.id}" ${on ? 'checked' : ''}><span><span class="code">${tcode(t)}</span>${t.important ? '<span class="imp">!</span>' : ''}${qTag(t, s)}${t.elephant ? '🐘 ' : ''}${esc(t.what)} <span class="m">${esc(goalLabel(t))} ${t.estimate ? '· ' + t.estimate + ' h' : ''}</span> ${dueTag(t.deadline, s)}</span></label>
-          <select style="width:92px" data-c="pickTime" data-id="${t.id}" title="start time (places a block)"><option value="">time…</option>${hours.map(h => `<option value="${h}" ${b && b.start === h ? 'selected' : ''}>${hh(h)}</option>`).join('')}</select></div>`; }).join('') || '<div class="empty">No open tasks. Add some on the task sheets (Key areas).</div>'}
+          <select style="width:92px" data-c="pickTime" data-id="${t.id}" title="start time (places a block)"><option value="">time…</option>${hours.map(h => `<option value="${h}" ${b && b.start === h ? 'selected' : ''}>${hh(h)}${esc(hourNote(h, t.id))}</option>`).join('')}</select></div>`; }).join('') || '<div class="empty">No open tasks. Add some on the task sheets (Key areas).</div>'}
       <div class="m" style="margin-top:6px">Sorted: late → ! important → deadline → serves a goal. A start time places a block of the task's estimate (1 h if none).</div></div>
       <div class="card"><h3>Tomorrow so far</h3>${hoursCol(s)}</div></div>`;
   } else if (st === 5 || st === 6) {
@@ -1145,8 +1155,9 @@ const A = {
       return form(`🔁 ${r.title} · ${dayName(o.date)}`, [{ k: 'title', label: 'What (this day only)', value: r.title, req: true },
         [{ k: 'from', label: 'From', type: 'select', value: hh(r.start), options: HALF_HOURS }, { k: 'to', label: 'To', type: 'select', value: hh(r.end), options: HALF_HOURS }]],
         v => { const a = t2h(v.from), z = t2h(v.to); if (!(z > a)) { toast('End must be after start'); return false; }
-          S.blocks.push({ id: id(), date: o.date, start: a, end: z, kind: 'booked', title: v.title, area: r.area, ruleId: r.id }); },
-        [['skip this day', () => { (day(o.date).skip ||= []).push(r.id); }], ['edit the rhythm', () => { setTimeout(() => A.ruleEdit({ id: r.id })); }]]); }
+          S.blocks.push({ id: id(), date: o.date, start: a, end: z, kind: r.kind === 'area' ? 'areatime' : 'booked', title: v.title, area: r.area, ruleId: r.id }); },
+        [...(r.kind === 'area' ? [['book a meeting here', () => { setTimeout(() => A.booked({ date: o.date, h: o.h })); }]] : []),
+         ['skip this day', () => { (day(o.date).skip ||= []).push(r.id); }], ['edit the rhythm', () => { setTimeout(() => A.ruleEdit({ id: r.id })); }]]); }
     if (confirm(`Remove "${b.kind === 'planned' && task(b.taskId) ? task(b.taskId).what : b.title}" ${hh(b.start)}–${hh(b.end)}?`)) {
       S.blocks = S.blocks.filter(x => x !== b); if (b.ruleId) (day(b.date).skip ||= []).push(b.ruleId); render(); } },
   ruleEdit: o => { const r = o.id ? S.rules.find(x => x.id === +o.id) : null, t2h = s => { const [h, m] = s.split(':').map(Number); return h + (m >= 30 ? 0.5 : 0); };
@@ -1155,11 +1166,13 @@ const A = {
       WEEK.map(d => ({ k: 'd' + d, label: WEEKDAYS[d].slice(0, 3), type: 'check', value: r ? r.days.includes(d) : d >= 1 && d <= 5 })),
       [{ k: 'from', label: 'From', type: 'select', value: hh(r ? r.start : 9), options: HALF_HOURS }, { k: 'to', label: 'To', type: 'select', value: hh(r ? r.end : 10), options: HALF_HOURS },
        { k: 'area', label: 'Key area', type: 'select', value: r?.area || '', options: [['', '—'], ...areaOpts(false)] }],
+      { k: 'kind', label: 'This time is', type: 'select', value: r?.kind || 'booked', options: RKIND },
       { k: 'paused', label: 'paused', type: 'check', value: r?.paused }],
       v => { const days = WEEK.filter(d => v['d' + d]), a = t2h(v.from), z = t2h(v.to);
         if (!days.length) { toast('Choose at least one day'); return false; }
         if (!(z > a)) { toast('End must be after start'); return false; }
-        const data = { title: v.title, days, start: a, end: z, area: v.area ? +v.area : null, paused: v.paused };
+        if (v.kind === 'area' && !v.area) { toast('Time for tasks needs its key area'); return false; }
+        const data = { title: v.title, days, start: a, end: z, area: v.area ? +v.area : null, kind: v.kind, paused: v.paused };
         if (!r) S.rules.push({ id: id(), ...data, from: TODAY, to: '' });
         else if (r.from < TODAY) { r.to = addDays(TODAY, -1); S.rules.push({ id: id(), ...data, from: TODAY, to: '' }); } // past days keep the old rule
         else Object.assign(r, data); },
@@ -1202,7 +1215,7 @@ const C = { // change handlers
   pickTime: el => { const s = addDays(U.date, 1), d = day(s), t = task(el.dataset.id);
     S.blocks = S.blocks.filter(b => !(b.date === s && b.taskId === t.id));
     if (el.value !== '') { const a = +el.value, b = Math.min(win()[1], a + (t.estimate || 1));
-      if (blocksOn(s).some(x => x.start < b && a < x.end)) toast('That overlaps another block — check the time column');
+      if (blocksOn(s).some(x => x.kind !== 'areatime' && x.start < b && a < x.end)) toast('That overlaps another block — check the time column');
       S.blocks.push({ id: id(), date: s, start: a, end: b, kind: 'planned', taskId: t.id, area: t.area }); if (!d.tasks.includes(t.id)) d.tasks.push(t.id); } },
   pickAct: el => { const d = day(addDays(U.date, 1)), aid = +el.dataset.id; d.acts = d.acts.filter(x => x !== aid); if (el.checked) d.acts.push(aid); },
 };
@@ -1279,6 +1292,9 @@ function selfTest() {
   S.days['2026-11-25'] = { skip: [7] }; S.blocks = [{ id: 1, date: '2026-11-30', start: 11, end: 12, kind: 'booked', title: 'Gym later', ruleId: 7 }];
   console.assert(blocksOn('2026-11-25').length === 0 && blocksOn('2026-11-30').length === 1 && blocksOn('2026-11-30')[0].start === 11, 'skip and one-day change replace the rule block');
   console.assert(availableH('2026-11-23') === 12 && areaMinutes('2026-11-23').plan.none === 60, 'rhythm counts in free time and in the ledger');
+  S.rules = [{ id: 8, title: 'Sales', kind: 'area', days: [1], start: 10, end: 12, area: 1, from: '2026-11-02', to: '' }]; S.blocks = [{ id: 2, date: '2026-11-23', start: 10, end: 11, kind: 'planned', taskId: 99, area: 1 }];
+  const am = areaMinutes('2026-11-23').plan;
+  console.assert(availableH('2026-11-23') === 12 && am[1] === 120, 'area time stays free for tasks; a task inside it counts once');
   S.projects = [1, 2, 3].map(i => ({ id: i, status: 'active' }));
   console.assert(!canActivate(null) && canActivate(S.projects[0]), 'at most 3 active projects'); S = keep2;
   console.log('selftest done');

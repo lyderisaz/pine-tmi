@@ -5,3 +5,4 @@
 .assetsignore
 wrangler.toml
 *.md
+docs
