@@ -80,7 +80,7 @@ async function fakeDrive(route) {
   const q = await ctx.newPage(); q.on('dialog', d => d.accept()); q.on('pageerror', e => problems.push('pageerror(own): ' + e.message));
   await q.goto('https://pusis.test/own.html'); await q.evaluate(() => localStorage.removeItem('pusis.sync')); await q.reload();
   check(await q.locator('#cloud').isHidden(), '6: no ID → no pill');
-  await q.click('[data-a=menu]'); await q.click('summary'); await q.fill('[data-c=clientId]', 'own.apps.googleusercontent.com'); await q.press('[data-c=clientId]', 'Tab'); await q.click('[data-a=gConnectBtn]');
+  await q.click('[data-a=menu]'); await q.click('summary:has-text("Client ID")'); await q.fill('[data-c=clientId]', 'own.apps.googleusercontent.com'); await q.press('[data-c=clientId]', 'Tab'); await q.click('[data-a=gConnectBtn]');
   await q.waitForSelector('#cloud:has-text("saved")', { timeout: 5000 });
   check(await q.evaluate(() => window.__cid) === 'own.apps.googleusercontent.com', '6: own pasted ID used');
   // 7. Google refuses (Drive API off): the exact reason and what to do are shown

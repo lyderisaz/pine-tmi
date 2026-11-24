@@ -32,6 +32,7 @@ Every activity remains attached to the larger plan, so the important work stays 
 - Plan a day using the elephant technique and `Plan tomorrow`
 - Capture tasks, ideas, calls, e-mails, notes, and people
 - Repeat weekly commitments with the weekly rhythm: busy time (sleep, sport, lunch) or time kept free for one key area's tasks
+- See meetings from Google, Apple or Outlook calendar as booked time: import a `.ics` file or Google's `.zip` export (one-way, today and the next 8 weeks)
 - Review planned versus actual time with the optional time ledger
 - Prioritize open tasks with the optional Covey matrix
 - Save locally, export a backup, save to a file, or sync with your Google Drive
@@ -73,6 +74,7 @@ By default, Pušis stores data in browser `localStorage`. It sends nothing to a 
 - **Exported backup:** use **⚙ → Backup → export** for a portable copy
 - **Synced file:** Chrome or Edge can save to a local file, for example inside a synced Drive, OneDrive, or Dropbox folder
 - **Google Drive:** optional sync stores `pusis-data.json` in your own Google Drive
+- **Calendar import:** the `.ics` file is read in your browser and is not uploaded; the events are stored with your plans (and sync with them), and **Hide event titles** stores only "Busy"
 - **Shared database:** a private copy can use a server when it includes `<meta name="pusis-api" content="/api">`
 
 Google Drive setup is documented in [GOOGLE_SETUP.md](GOOGLE_SETUP.md). No account or integration is needed to try the app.
@@ -86,10 +88,10 @@ Built-in self-check: open the app with `#test` at the end of the address and ins
 Test scripts require [Playwright](https://playwright.dev):
 
 ```bash
-node prototype/proto_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html> <screenshot folder>
-node prototype/sync_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html>
-node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
-node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
+node prototype/proto_test_v16.js <playwright module path> <absolute path to pusis_proto_v16.html> <screenshot folder>
+node prototype/sync_test_v16.js <playwright module path> <absolute path to pusis_proto_v16.html>
+node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v16.html>
+node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v16.html>
 ```
 
 The sync, Drive, and file tests use fake services, so no real account or file is needed.

@@ -46,6 +46,9 @@
 !/prototype/pusis_proto_v15.html
 !/prototype/proto_test_v15.js
 !/prototype/sync_test_v15.js
+!/prototype/pusis_proto_v16.html
+!/prototype/proto_test_v16.js
+!/prototype/sync_test_v16.js
 !/docs/
 /docs/*
 !/docs/screenshots.js

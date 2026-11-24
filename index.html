@@ -80,7 +80,7 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo" title="Pušis prototype v15">🌲 Pušis <span class="m" style="font-size:10px">v15</span></span>
+ <span class="logo" title="Pušis prototype v16">🌲 Pušis <span class="m" style="font-size:10px">v16</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
@@ -436,7 +436,7 @@ const dayOfYear = s => Math.round((s2d(s) - new Date(s2d(s).getFullYear(), 0, 1)
 const dayName = s => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][s2d(s).getDay()]} ${s}`;
 const stamp = (d = new Date()) => `${d2s(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const hh = h => `${pad(Math.floor(h))}:${h % 1 ? '30' : '00'}`;
-const DEFAULTS = { dayStart: 8, dayEnd: 21, reviewDay: 5, flapsi: true, ledger: true, covey: true, urgentDays: 3 }; // lenses on by default (user request, v11) // paper daily plan: 08–21; review day 5 = Friday (plan_v3 D3)
+const DEFAULTS = { dayStart: 8, dayEnd: 21, reviewDay: 5, flapsi: true, ledger: true, covey: true, urgentDays: 3, icsHide: false }; // lenses on by default (user request, v11) // paper daily plan: 08–21; review day 5 = Friday (plan_v3 D3)
 const set = () => ({ ...DEFAULTS, ...(S.settings || {}) });
 const win = () => [set().dayStart, set().dayEnd];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -480,6 +480,156 @@ const blocksOn = s => {
 // v15: a rule is either busy time (sleep, sport, lunch) or time for one key area's tasks (sales, production), which stays free for them
 const RKIND = [['area', 'time for this key area\'s tasks'], ['booked', 'busy (sleep, sport, lunch…)']];
 const ruleDays = r =>r.days.length === 7 ? 'every day' : WEEK.filter(d => r.days.includes(d)).map(d => WEEKDAYS[d].slice(0, 3)).join(' ');
+// ---------- calendar import (v16): events from a .ics file (Google, Apple, Outlook) become booked blocks ----------
+// One-way and one-off: import again to refresh. Only today and the next 8 weeks are imported, and days before today are
+// never rewritten. Each calendar replaces only its own blocks, so several calendars can sit side by side.
+// Blocks carry src 'ics' and the calendar's name; all-day events have allDay and 0–0 hours, so they take no time.
+const ICS_DAYS = 56, ICS_MAX = 3000, DAY_MS = 864e5;
+const icsLines = t => t.replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n'); // long lines are folded with a leading space
+function icsProp(line) { // NAME;PARAM=x;TZID="a:b":value → { name, params, value }
+  let q = false, i = 0;
+  for (; i < line.length; i++) { const c = line[i]; if (c === '"') q = !q; else if (c === ':' && !q) break; }
+  const [name, ...ps] = line.slice(0, i).split(';'), params = {};
+  for (const p of ps) { const j = p.indexOf('='); if (j > 0) params[p.slice(0, j).toUpperCase()] = p.slice(j + 1).replace(/^"|"$/g, ''); }
+  return { name: name.toUpperCase(), params, value: line.slice(i + 1) };
+}
+const icsText = v => v.replace(/\\([\\;,nN])/g, (_, c) => /n/i.test(c) ? ' ' : c).replace(/\s+/g, ' ').trim().slice(0, 200);
+function icsTime(value, params = {}) { // → wall-clock parts of the event's zone: { y, mo, d, h, mi, s, date, utc, tz }
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/.exec(String(value).trim());
+  if (!m) return null;
+  const date = params.VALUE === 'DATE' || !m[4];
+  return { y: +m[1], mo: +m[2], d: +m[3], h: date ? 0 : +m[4], mi: date ? 0 : +m[5], s: date ? 0 : +(m[6] || 0), date, utc: !date && !!m[7], tz: m[7] ? '' : (params.TZID || '') };
+}
+const DTF = {};
+function tzOffset(tz, ms) { // how far the zone's wall clock is ahead of UTC at that moment
+  const f = DTF[tz] ||= new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+  const p = {}; for (const x of f.formatToParts(new Date(ms))) p[x.type] = +x.value;
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - ms;
+}
+function icsMs(t) { // wall clock → moment; a zone the browser does not know (Outlook's Windows names) is read as local time
+  const g = Date.UTC(t.y, t.mo - 1, t.d, t.h, t.mi, t.s);
+  if (t.utc) return g;
+  if (t.tz && !t.date) try { const o = tzOffset(t.tz, g), o2 = tzOffset(t.tz, g - o); return g - o2; } catch (e) {}
+  return new Date(t.y, t.mo - 1, t.d, t.h, t.mi, t.s).getTime();
+}
+function icsDur(v) { // P1W, P2D, PT1H30M → { days, ms }
+  const m = /^\+?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(String(v).trim());
+  return m && { days: (+m[1] || 0) * 7 + (+m[2] || 0), ms: ((+m[3] || 0) * 3600 + (+m[4] || 0) * 60 + (+m[5] || 0)) * 1000 };
+}
+function icsParse(text) { // → { name, events: [{ uid, title, start, end, dur, rrule, exdates, recur, status, transp }] }
+  const cal = { name: '', events: [] }; let ev = null, depth = 0;
+  for (const line of icsLines(text)) {
+    if (!line.trim()) continue;
+    const p = icsProp(line), v = p.value.trim();
+    if (p.name === 'BEGIN') { if (ev) depth++; else if (v.toUpperCase() === 'VEVENT') ev = { exdates: [] }; continue; }
+    if (p.name === 'END') { if (ev && depth) depth--; else if (ev && v.toUpperCase() === 'VEVENT') { cal.events.push(ev); ev = null; } continue; }
+    if (!ev) { if (p.name === 'X-WR-CALNAME') cal.name = icsText(p.value); continue; }
+    if (depth) continue; // an alarm inside the event
+    if (p.name === 'UID') ev.uid = v;
+    else if (p.name === 'SUMMARY') ev.title = icsText(p.value);
+    else if (p.name === 'DTSTART') ev.start = icsTime(v, p.params);
+    else if (p.name === 'DTEND') ev.end = icsTime(v, p.params);
+    else if (p.name === 'DURATION') ev.dur = icsDur(v);
+    else if (p.name === 'RRULE') ev.rrule = v;
+    else if (p.name === 'EXDATE') for (const x of v.split(',')) { const t = icsTime(x, p.params); if (t) ev.exdates.push(t); }
+    else if (p.name === 'RECURRENCE-ID') ev.recur = icsTime(v, p.params);
+    else if (p.name === 'STATUS') ev.status = v.toUpperCase();
+    else if (p.name === 'TRANSP') ev.transp = v.toUpperCase();
+  }
+  return cal;
+}
+const WD = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 }, RULE_OK = ['FREQ', 'INTERVAL', 'COUNT', 'UNTIL', 'BYDAY', 'BYMONTHDAY', 'WKST'];
+function icsStarts(ev, fromMs, lastMs) { // the starts of a (repeating) event up to lastMs; null when the rule uses parts Pušis does not read
+  const st = ev.start;
+  if (!ev.rrule) return [st];
+  const r = {}; for (const part of ev.rrule.split(';')) { const [k, x] = part.split('='); if (k) r[k.toUpperCase()] = x || ''; }
+  if (!Object.keys(r).every(k => RULE_OK.includes(k)) || !['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(r.FREQ)) return null;
+  const days = (r.BYDAY || '').split(',').filter(Boolean).map(x => { const m = /^([+-]?\d{1,2})?(SU|MO|TU|WE|TH|FR|SA)$/.exec(x); return m && { n: +(m[1] || 0), wd: WD[m[2]] }; });
+  if (days.some(x => !x)) return null;
+  const mdays = (r.BYMONTHDAY || '').split(',').filter(Boolean).map(Number), every = Math.max(1, +r.INTERVAL || 1), count = +r.COUNT || 0;
+  const u = r.UNTIL ? icsTime(r.UNTIL) : null, untilMs = u ? icsMs(u.date ? { ...u, h: 23, mi: 59, s: 59, date: false, tz: st.tz } : u.utc ? u : { ...u, tz: st.tz }) : Infinity;
+  const d0 = Date.UTC(st.y, st.mo - 1, st.d), wd0 = new Date(d0).getUTCDay(), mon0 = d0 - ((wd0 + 6) % 7) * DAY_MS, out = [];
+  for (let t = d0, n = 0; t <= lastMs + 2 * DAY_MS; t += DAY_MS) {
+    const D = new Date(t), y = D.getUTCFullYear(), mo = D.getUTCMonth() + 1, d = D.getUTCDate(), wd = D.getUTCDay(), last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    const dayOk = x => x.wd === wd && (!x.n || (x.n > 0 ? Math.ceil(d / 7) === x.n : Math.ceil((last - d + 1) / 7) === -x.n));
+    let ok;
+    if (r.FREQ === 'DAILY') ok = Math.round((t - d0) / DAY_MS) % every === 0 && (!days.length || days.some(dayOk));
+    else if (r.FREQ === 'WEEKLY') ok = Math.floor((t - mon0) / (7 * DAY_MS)) % every === 0 && (days.length ? days.some(x => x.wd === wd) : wd === wd0);
+    else if (r.FREQ === 'MONTHLY') ok = ((y - st.y) * 12 + mo - st.mo) % every === 0 && (mdays.length || days.length
+      ? (!mdays.length || mdays.some(x => x === d || (x < 0 && last + x + 1 === d))) && (!days.length || days.some(dayOk)) : d === st.d);
+    else ok = (y - st.y) % every === 0 && mo === st.mo && d === st.d;
+    if (t === d0) ok = true; // the first start always counts
+    if (!ok) continue;
+    const occ = { ...st, y, mo, d };
+    if (t < fromMs - 2 * DAY_MS) { if (t > untilMs + DAY_MS) break; } // long before the window: only counted
+    else { const ms = icsMs(occ); if (ms > untilMs || ms >= lastMs) break; out.push(occ); }
+    if (count && ++n >= count) break;
+  }
+  return out;
+}
+const hmOf = ms => { const D = new Date(ms); return `${pad(D.getHours())}:${pad(D.getMinutes())}`; };
+function icsBlocks(cal, name, from, to, hide) { // the calendar's events from `from` to `to` (dates) → { blocks, simplified, skipped }
+  const fromMs = s2d(from).getTime(), lastMs = s2d(addDays(to, 1)).getTime(), out = [];
+  let simplified = 0, skipped = 0;
+  const moved = {}; // starts that a changed or cancelled occurrence replaces, per event
+  for (const ev of cal.events) if (ev.recur && ev.uid) (moved[ev.uid] ||= []).push(icsMs(ev.recur));
+  for (const ev of cal.events) {
+    if (!ev.start || ev.status === 'CANCELLED' || (!ev.start.date && ev.transp === 'TRANSPARENT')) { skipped++; continue; }
+    let starts = ev.recur ? [ev.start] : icsStarts(ev, fromMs, lastMs);
+    if (!starts) { simplified++; starts = [ev.start]; }
+    const title = hide ? 'Busy' : ev.title || 'Busy', ex = ev.exdates.map(x => icsMs(x.utc || x.date ? x : { ...x, tz: x.tz || ev.start.tz })).concat(ev.recur ? [] : moved[ev.uid] || []);
+    const base = { kind: 'booked', title, area: null, src: 'ics', cal: name, uid: ev.uid || '' };
+    for (const st of starts) {
+      const a = icsMs(st);
+      if (ex.includes(a) || (st.date && ex.some(x => d2s(new Date(x)) === d2s(new Date(a))))) continue;
+      if (st.date) { // all-day: from the start date up to the end date (not included)
+        const s0 = `${st.y}-${pad(st.mo)}-${pad(st.d)}`, e = ev.end && ev.end.date ? `${ev.end.y}-${pad(ev.end.mo)}-${pad(ev.end.d)}` : '';
+        const n = e ? Math.max(1, Math.round((s2d(e) - s2d(`${ev.start.y}-${pad(ev.start.mo)}-${pad(ev.start.d)}`)) / DAY_MS)) : ev.dur ? Math.max(1, ev.dur.days) : 1;
+        for (let i = 0; i < n; i++) { const s = addDays(s0, i); if (s >= from && s <= to) out.push({ ...base, date: s, start: 0, end: 0, allDay: true }); }
+        continue;
+      }
+      const len = ev.end ? icsMs(ev.end) - icsMs(ev.start) : ev.dur ? ev.dur.days * DAY_MS + ev.dur.ms : 0, z = a + Math.max(len, 30 * 60000);
+      for (let s = d2s(new Date(a)); s2d(s).getTime() < z; s = addDays(s, 1)) { // an event over midnight is cut at each midnight
+        if (s > to) break;
+        const s1 = s2d(s).getTime(), s2 = s2d(addDays(s, 1)).getTime(), p = Math.max(a, s1), q = Math.min(z, s2);
+        if (s < from || q <= p) continue;
+        const hOf = ms => { const D = new Date(ms); return D.getHours() + D.getMinutes() / 60; };
+        const start = Math.floor(hOf(p) * 2) / 2, end = q === s2 ? 24 : Math.min(24, Math.max(start + 0.5, Math.ceil(hOf(q) * 2) / 2));
+        const exact = hOf(p) === start && (q === s2 || hOf(q) === end);
+        out.push({ ...base, date: s, start, end, title: exact ? title : `${title} (${hmOf(p)}–${q === s2 ? '24:00' : hmOf(q)})` });
+      }
+    }
+  }
+  return { blocks: out, simplified, skipped };
+}
+async function icsFiles(file) { // → [{ name, text }]: one .ics file, or each .ics in a .zip (Google Calendar's "Export" gives a zip)
+  const b = new Uint8Array(await file.arrayBuffer()), dec = x => new TextDecoder().decode(x);
+  if (b[0] !== 0x50 || b[1] !== 0x4b) return [{ name: file.name, text: dec(b) }];
+  const v = new DataView(b.buffer, b.byteOffset, b.byteLength), out = [];
+  let e = b.length - 22; while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('damaged zip');
+  for (let i = 0, n = v.getUint16(e + 10, true), p = v.getUint32(e + 16, true); i < n && v.getUint32(p, true) === 0x02014b50; i++) {
+    const method = v.getUint16(p + 10, true), size = v.getUint32(p + 20, true), nl = v.getUint16(p + 28, true), off = v.getUint32(p + 42, true);
+    const name = dec(b.subarray(p + 46, p + 46 + nl)); p += 46 + nl + v.getUint16(p + 30, true) + v.getUint16(p + 32, true);
+    if (!/\.ics$/i.test(name) || v.getUint32(off, true) !== 0x04034b50) continue;
+    const at = off + 30 + v.getUint16(off + 26, true) + v.getUint16(off + 28, true), data = b.subarray(at, at + size);
+    if (method === 0) out.push({ name, text: dec(data) });
+    else if (method === 8) out.push({ name, text: await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text() });
+  }
+  return out;
+}
+function icsAdd(f) { // import one calendar: its blocks from today on are replaced → a line for the toast
+  const cal = icsParse(f.text), name = (cal.name || f.name.split('/').pop().replace(/\.ics$/i, '') || 'Calendar').slice(0, 60);
+  if (!cal.events.length) return `${name}: no events`;
+  const { blocks, simplified } = icsBlocks(cal, name, TODAY, addDays(TODAY, ICS_DAYS - 1), set().icsHide);
+  if (blocks.length > ICS_MAX) return `${name}: too many events (${blocks.length}), not imported`;
+  S.blocks = S.blocks.filter(b => !(b.src === 'ics' && b.cal === name && b.date >= TODAY));
+  // a meeting you also booked by hand, or a planned task, now shares its time: say so, decide in the time column
+  const overlap = blocks.filter(x => !x.allDay && blocksOn(x.date).some(b => !b.allDay && b.kind !== 'areatime' && b.start < x.end && x.start < b.end)).length;
+  for (const x of blocks) S.blocks.push({ id: id(), ...x });
+  return `${name}: ${blocks.length} event${blocks.length === 1 ? '' : 's'}${simplified ? `, ${simplified} repeating shown once` : ''}${overlap ? `, ${overlap} overlap other blocks — check the time column` : ''}`;
+}
+const icsCals = () => { const m = {}; for (const b of S.blocks) if (b.src === 'ics' && b.date >= TODAY) { const c = m[b.cal] ||= { n: 0, last: '' }; c.n++; if (b.date > c.last) c.last = b.date; } return m; };
 // ---------- projects (v13): at most 3 active, so attention stays on what earns ----------
 const ACTIVE_MAX = 3;
 const PSTATUS = [['active', '▶ active'], ['planned', '◌ planned, not started'], ['maintained', '◐ maintained'], ['paused', '⏸ paused'], ['closed', '✓ closed']];
@@ -588,7 +738,7 @@ V.ledger = () => {
   const kind = U.balKind || 'week', ref = U.balDate || TODAY, [a, z, label] = periodRange(kind, ref);
   const plan = {}, actual = {}, lost = {}; let days = 0;
   for (let s = a; s <= z && s <= TODAY; s = addDays(s, 1)) {
-    if (!S.days[s] && !blocksOn(s).length) continue; days++;
+    if (!S.days[s] && !blocksOn(s).some(b => !b.allDay)) continue; days++;
     const m = areaMinutes(s);
     for (const [k, v] of Object.entries(m.plan)) plan[k] = (plan[k] || 0) + v;
     for (const [k, v] of Object.entries(m.actual)) actual[k] = (actual[k] || 0) + v;
@@ -646,7 +796,7 @@ const HELP = {
     ['plan', '🌙 Plan tomorrow', `
 <p>About five minutes each evening. You can skip any step.</p>
 <ol><li><b>Close today</b>: tick what is done; move the rest to tomorrow or back to its sheet; correct the minutes per key area.</li>
-<li><b>Booked</b>: enter tomorrow's fixed appointments.</li>
+<li><b>Booked</b>: enter tomorrow's fixed appointments, or import them from your calendar (📅 below).</li>
 <li><b>Elephant</b>: tomorrow's bite of the big task.</li>
 <li><b>Tasks</b>: tick what you will do. The list is sorted: late → ! important → nearest deadline → serves a goal. Choosing a start time places a block of the task's estimate.</li>
 <li><b>Activities</b> of the picked tasks, plus anything due.</li>
@@ -662,7 +812,8 @@ const HELP = {
 <li><b>📁 Save to a file</b> (Chrome or Edge on a computer): Pušis writes every change to one file. Put it in your Google Drive for desktop, OneDrive or Dropbox folder to have it on your other computers. <b>📁 allow</b> means the browser wants your OK again: one click.</li>
 <li><b>☁ Google Drive</b> (any browser, also phones): signs in with Google and keeps <code>pusis-data.json</code> in your Drive. <b>☁ connect</b> appears when the sign-in expires (about hourly): one click.</li>
 <li><b>Conflict</b> (📁 or ☁): the copy was changed on another device. Nothing is overwritten until you choose which copy to keep; the newer one is suggested.</li>
-<li><b>Backup</b>: export / import a JSON file; load demo data; erase everything.</li></ul>`],
+<li><b>Backup</b>: export / import a JSON file; load demo data; erase everything.</li>
+<li><b>📅 Calendar</b>: import a .ics file (or Google's .zip) to see your meetings as booked time, marked 📅; all-day events show above the time column. It covers today and the next 8 weeks and is one-way: changes in Pušis do not go back to the calendar. Import again to refresh. Repeating events with unusual rules (for example "the last workday of the month") are shown once only; the message after the import says how many.</li></ul>`],
     ['ledger', '📊 Time ledger and Balance', `
 <p>An optional lens, switched on in <b>⚙ → Planning → Time ledger</b>. It adds the Lyubishchev way of looking back:</p>
 <ul><li><b>Plan vs actual</b>: the key-area strip shows the plan (from your blocks) and lets you enter what really happened (Plan tomorrow, step 1).</li>
@@ -766,6 +917,14 @@ V.settings = () => {
   <div class="card"><h3>🔁 Weekly rhythm <span class="m" style="text-transform:none;letter-spacing:0">booked blocks that repeat: sleep, sport, sales hours…</span></h3>
     ${S.rules.filter(r => !r.to || r.to >= TODAY).sort((a, b) => a.start - b.start).map(r => `<div class="row"><span class="grow ${r.paused ? 'done' : ''}"><b>${hh(r.start)}–${hh(r.end)}</b> ${esc(r.title)} <span class="m">· ${r.kind === 'area' ? 'time for tasks · ' : ''}${ruleDays(r)}${area(r.area) ? ' · ' + esc(`${r.area} ${area(r.area).name}`) : ''}${r.paused ? ' · paused' : ''}${r.from > TODAY ? ' · from ' + r.from : ''}</span></span><button data-a="ruleEdit" data-id="${r.id}">edit</button></div>`).join('') || '<div class="empty">No rhythm yet.</div>'}
     <div class="btns" style="justify-content:flex-start"><button class="pri" data-a="ruleEdit">+ block</button></div></div>
+  <div class="card"><h3>📅 Calendar <span class="m" style="text-transform:none;letter-spacing:0">events from Google, Apple or Outlook as booked time · one-way</span></h3>
+    ${Object.entries(icsCals()).sort().map(([c, x]) => `<div class="row"><span class="grow"><b>${esc(c)}</b> <span class="m">· ${x.n} event${x.n === 1 ? '' : 's'} until ${x.last}</span></span><button data-a="icsRemove" data-cal="${esc(c)}">remove</button></div>`).join('') || '<div class="empty">No calendar imported.</div>'}
+    <div class="row"><span>Hide event titles <span class="m">(import them as "Busy")</span></span><input type="checkbox" data-c="setting" data-k="icsHide" ${st.icsHide ? 'checked' : ''}></div>
+    <div class="row"><span class="m">Imports today and the next 8 weeks. Import again to refresh: each calendar replaces only its own events, and past days stay as they were.</span><button class="pri" data-a="icsImport" style="white-space:nowrap">import .ics…</button></div>
+    <details style="margin-top:6px"><summary class="m">How do I get a calendar file?</summary><ul class="m" style="margin:6px 0 0 18px;padding:0">
+      <li><b>Google Calendar</b> (on a computer): ⚙ Settings → Import &amp; export → Export gives a .zip with all your calendars; import it as it is. One calendar: its Settings and sharing → Export calendar.</li>
+      <li><b>Apple Calendar</b>: on a Mac, File → Export → Export. On an iPhone, make the iCloud calendar public, copy its link, change <code>webcal://</code> to <code>https://</code> and open it in a browser to download the file; then turn Public Calendar off again.</li>
+      <li><b>Outlook</b> on Windows: File → Save Calendar.</li></ul></details></div>
   ${API ? `<div class="card"><h3>🔄 Shared database <span class="m" style="text-transform:none;letter-spacing:0">all your signed-in devices</span></h3>
     <div class="row"><span>${pill('apill')}</span><button data-a="apill">sync now</button></div></div>` : `
   <div class="card"><h3>📁 Save to a file <span class="m" style="text-transform:none;letter-spacing:0">Chrome or Edge on a computer · no sign-in</span></h3>
@@ -870,7 +1029,8 @@ V.areas = () => {
 };
 
 function hoursCol(s) {
-  const bs = blocksOn(s); let out = '', prev = null;
+  const bs = blocksOn(s), allDay = bs.filter(b => b.allDay); let prev = null;
+  let out = allDay.length ? `<span class="h">📅</span><div class="m" title="all-day events from your calendar">${allDay.map(b => esc(b.title)).join(' · ')}</div>` : '';
   const [W0, W1] = win();
   for (let h = W0; h < W1; h += 0.5) {
     // a task or a meeting inside area time is shown over it
@@ -878,7 +1038,7 @@ function hoursCol(s) {
     if (h % 1 && !b) continue; // show half hours only when a block uses them
     if (!b) { out += `<span class="h">${hh(h)}</span><div class="slot" data-a="booked" data-date="${s}" data-h="${h}">available</div>`; continue; }
     const first = b !== was, t = task(b.taskId), a = area(b.area);
-    const label = b.kind === 'planned' && t ? `<span class="code">${tcode(t)}</span>${esc(t.what)}` : esc(b.title);
+    const label = b.kind === 'planned' && t ? `<span class="code">${tcode(t)}</span>${esc(t.what)}` : (b.src === 'ics' ? '📅 ' : '') + esc(b.title);
     out += `<span class="h">${hh(h)}</span><div class="slot ${b.kind} ${first ? '' : 'cont'}" data-a="blockEdit" data-id="${b.id}" data-date="${s}" data-h="${h}" ${b.kind === 'areatime' ? 'title="time for this key area\'s tasks"' : ''} ${(b.kind === 'planned' || b.kind === 'areatime') && a ? `style="border-left-color:${a.colour}"` : ''}>${first ? `${b.ruleId ? '🔁 ' : ''}${label} <span class="m" style="color:inherit;opacity:.8">${hh(b.start)}–${hh(b.end)}</span>` : '↳'}</div>`;
   }
   return `<div class="hours">${out}</div>`;
@@ -923,7 +1083,7 @@ V.plan = () => {
         ${k === 't' && x.kind === 'ongoing' ? '' : `<button data-a="close" data-k="${k}" data-id="${x.id}" data-to="done">✓ done</button>`}<button data-a="close" data-k="${k}" data-id="${x.id}" data-to="tomorrow">→ tomorrow</button><button data-a="close" data-k="${k}" data-id="${x.id}" data-to="sheet">→ back to sheet</button></div>`).join('') || '<div class="empty">Nothing open. Well done.</div>'}
       <div class="m" style="margin-top:6px">"Back to sheet" removes it from the day; it stays on its task sheet with its deadline.</div></div><div class="col">${stripCard(from, true)}${ledgerOn() ? lostCard(from) : ''}</div></div>`;
   } else if (st === 2) {
-    body = `<div class="grid2"><div class="card"><h3>Booked slots for ${dayName(s)} <span>available ${fmtH(availableH(s))}</span></h3>${hoursCol(s)}</div><div class="card m">Enter what is already fixed tomorrow: meetings, calls, appointments, school runs. On paper these come from the monthly view. Click a free hour to book it. 🔁 blocks come from your <button class="link" data-a="go" data-v="settings">weekly rhythm</button>; click one to change or skip it for this day.</div></div>`;
+    body = `<div class="grid2"><div class="card"><h3>Booked slots for ${dayName(s)} <span>available ${fmtH(availableH(s))}</span></h3>${hoursCol(s)}</div><div class="card m">Enter what is already fixed tomorrow: meetings, calls, appointments, school runs. On paper these come from the monthly view. Click a free hour to book it. 🔁 blocks come from your <button class="link" data-a="go" data-v="settings">weekly rhythm</button>; click one to change or skip it for this day.<br><br>📅 Meetings already in Google, Apple or Outlook calendar? <button class="link" data-a="icsImport">Import a calendar file</button> (.ics or .zip); <button class="link" data-a="go" data-v="settings">⚙ Settings</button> shows how to get one.</div></div>`;
   } else if (st === 3) {
     const el = S.tasks.filter(t => openTask(t) && t.elephant);
     body = `<div class="card" style="max-width:640px"><h3>🐘 Elephant of the day</h3>
@@ -1037,6 +1197,12 @@ const A = {
   fileStop: () => { clearTimeout(FS.timer); FS.handle = null; idb('del'); fpill(''); toast('Stopped — the file stays where it is'); render(); },
   gConnectBtn: () => gConnect(),
   gDisconnect: () => { if (G.token && window.google) google.accounts.oauth2.revoke(G.token, () => {}); G.token = null; SC = SC.clientId ? { clientId: SC.clientId } : {}; scSave(); cloud(''); toast('Disconnected — the Drive file stays in your Drive'); render(); },
+  icsImport: () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.ics,.zip,text/calendar'; i.onchange = async () => {
+    try { const files = await icsFiles(i.files[0]); if (!files.length) throw new Error('no .ics inside');
+      const lines = files.map(icsAdd); render(); toast('📅 ' + lines.join(' · '), 8000); }
+    catch (e) { toast('Not a calendar file (.ics or .zip): ' + e.message, 6000); } }; i.click(); },
+  icsRemove: o => { if (!confirm(`Remove the events of "${o.cal}" from today on? Past days stay as they were.`)) return;
+    S.blocks = S.blocks.filter(b => !(b.src === 'ics' && b.cal === o.cal && b.date >= TODAY)); render(); },
   exportJson: () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' })); a.download = `pusis-backup-${TODAY}.json`; a.click(); },
   importJson: () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const x = JSON.parse(await i.files[0].text()); if (!x.areas || !x.tasks) throw 0; if (confirm('Replace all data in this browser with the backup?' + driveNote())) { x.settings ||= S.settings; S = x; render(); toast('Backup loaded'); } } catch (e) { toast('Not a Pušis backup file'); } }; i.click(); },
   // settings are your preferences, not data: demo and erase keep them
@@ -1297,6 +1463,29 @@ function selfTest() {
   console.assert(availableH('2026-11-23') === 12 && am[1] === 120, 'area time stays free for tasks; a task inside it counts once');
   S.projects = [1, 2, 3].map(i => ({ id: i, status: 'active' }));
   console.assert(!canActivate(null) && canActivate(S.projects[0]), 'at most 3 active projects'); S = keep2;
+  // v16: calendar import
+  console.assert(icsMs(icsTime('20261125T100000', { TZID: 'Europe/Vilnius' })) === Date.UTC(2026, 10, 25, 8) && icsMs(icsTime('20260715T100000', { TZID: 'Europe/Vilnius' })) === Date.UTC(2026, 6, 15, 7)
+    && icsMs(icsTime('20261101T013000', { TZID: 'America/New_York' })) === Date.UTC(2026, 10, 1, 5, 30) && icsMs(icsTime('20261125T080000Z')) === Date.UTC(2026, 10, 25, 8)
+    && icsMs(icsTime('20261125T100000', { TZID: 'FLE Standard Time' })) === new Date(2026, 10, 25, 10).getTime(), 'calendar time zones, a summer-time change, unknown zones as local');
+  const Z = Intl.DateTimeFormat().resolvedOptions().timeZone, ics = ['BEGIN:VCALENDAR', 'X-WR-CALNAME:Work',
+    'BEGIN:VEVENT', 'UID:a', 'SUMMARY:Stand\\, up', `DTSTART;TZID=${Z}:20261123T091500`, `DTEND;TZID=${Z}:20261123T094500`, 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=4',
+    `EXDATE;TZID=${Z}:20261125T091500`, 'BEGIN:VALARM', 'TRIGGER:-PT10M', 'END:VALARM', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:a', `RECURRENCE-ID;TZID=${Z}:20261130T091500`, 'SUMMARY:Stand up moved', `DTSTART;TZID=${Z}:20261130T140000`, `DTEND;TZID=${Z}:20261130T150000`, 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:b', 'SUMMARY:Trip', 'DTSTART;VALUE=DATE:20261126', 'DTEND;VALUE=DATE:20261128', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:c', 'SUMMARY:Night shift fol', ' ded', `DTSTART;TZID=${Z}:20261126T220000`, 'DURATION:PT4H', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:d', 'SUMMARY:Odd rule', `DTSTART;TZID=${Z}:20261127T100000`, `DTEND;TZID=${Z}:20261127T110000`, 'RRULE:FREQ=MONTHLY;BYSETPOS=-1;BYDAY=MO,TU,WE,TH,FR', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:e', 'SUMMARY:Cancelled', `DTSTART;TZID=${Z}:20261127T120000`, 'STATUS:CANCELLED', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:f', 'SUMMARY:Free', `DTSTART;TZID=${Z}:20261127T130000`, 'DURATION:PT1H', 'TRANSP:TRANSPARENT', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const cal = icsParse(ics), r = icsBlocks(cal, cal.name, '2026-11-23', '2026-12-06', false), on = s => r.blocks.filter(b => b.date === s).map(b => `${b.allDay ? 'all' : b.start + '-' + b.end} ${b.title}`).join('|');
+  console.assert(cal.name === 'Work' && cal.events.length === 7 && r.simplified === 1 && r.skipped === 2 && r.blocks.every(b => b.src === 'ics' && b.cal === 'Work' && b.kind === 'booked'), 'calendar parsed');
+  console.assert(on('2026-11-23') === '9-10 Stand, up (09:15–09:45)' && on('2026-11-25') === '' && on('2026-11-30') === '14-15 Stand up moved' && on('2026-12-02') === '9-10 Stand, up (09:15–09:45)' && on('2026-12-07') === '',
+    'repeats with a count, an excluded day and a moved one: ' + ['23', '25', '30'].map(d => on('2026-11-' + d)).join(' / '));
+  console.assert(on('2026-11-26') === 'all Trip|22-24 Night shift folded' && on('2026-11-27') === 'all Trip|0-2 Night shift folded|10-11 Odd rule' && on('2026-11-28') === '',
+    'all-day days, a night cut at midnight, an unread rule shown once: ' + on('2026-11-26') + ' / ' + on('2026-11-27'));
+  const r2 = icsBlocks(cal, 'W', '2026-11-24', '2026-11-29', true);
+  console.assert(r2.blocks.every(b => b.title.startsWith('Busy') && b.date >= '2026-11-24' && b.date <= '2026-11-29') && r2.blocks.length === 5, 'window and hidden titles');
+  const keep3 = S; S = seed(); S.blocks = [{ id: 1, date: 'x', start: 0, end: 0, kind: 'booked', title: 'Trip', allDay: true, src: 'ics' }];
+  console.assert(availableH('x') === 13 && hoursCol('x').includes('📅</span><div class="m"'), 'an all-day event takes no time and shows above the hours'); S = keep3;
   console.log('selftest done');
 }
 if (location.hash === '#test') selfTest();
