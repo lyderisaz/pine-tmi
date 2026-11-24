@@ -4,13 +4,13 @@
 
 ![Today in Pušis: a time column with a weekly rhythm, today's tasks, activities and a Don't forget list](docs/images/today.png)
 
-> **Status: phase 0 prototype** — the app works, but expect changes.
+> **Status: beta.** In daily use by its author since November 2026; expect changes. Found a problem? [Open an issue](https://github.com/lyderisaz/pine-tmi/issues) — see [Releases](https://github.com/lyderisaz/pine-tmi/releases) for known limitations.
 
 ## Try it
 
 **[Open the live app](https://pine-tmi.inventship.workers.dev/)** — no account is required.
 
-By default, your plans stay in your browser. Export a backup from **⚙ → Backup** regularly, especially while the app is in prototype status.
+By default, your plans stay in your browser. Export a backup from **⚙ → Backup** regularly, especially while the app is in beta.
 
 ## The pine-tree method
 
