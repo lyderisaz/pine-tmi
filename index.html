@@ -588,7 +588,7 @@ function icsBlocks(cal, name, from, to, hide) { // the calendar's events from `f
         for (let i = 0; i < n; i++) { const s = addDays(s0, i); if (s >= from && s <= to) out.push({ ...base, date: s, start: 0, end: 0, allDay: true }); }
         continue;
       }
-      const len = ev.end ? icsMs(ev.end) - icsMs(ev.start) : ev.dur ? ev.dur.days * DAY_MS + ev.dur.ms : 0, z = a + Math.max(len, 30 * 60000);
+      const len = ev.end ? icsMs(ev.end) - icsMs(ev.start) : ev.dur ? ev.dur.days * DAY_MS + ev.dur.ms : 0, z = a + (len > 0 ? len : 30 * 60000); // a short event keeps its own end, so its exact time is shown; one without length gets half an hour
       for (let s = d2s(new Date(a)); s2d(s).getTime() < z; s = addDays(s, 1)) { // an event over midnight is cut at each midnight
         if (s > to) break;
         const s1 = s2d(s).getTime(), s2 = s2d(addDays(s, 1)).getTime(), p = Math.max(a, s1), q = Math.min(z, s2);
@@ -1484,6 +1484,8 @@ function selfTest() {
     'all-day days, a night cut at midnight, an unread rule shown once: ' + on('2026-11-26') + ' / ' + on('2026-11-27'));
   const r2 = icsBlocks(cal, 'W', '2026-11-24', '2026-11-29', true);
   console.assert(r2.blocks.every(b => b.title.startsWith('Busy') && b.date >= '2026-11-24' && b.date <= '2026-11-29') && r2.blocks.length === 5, 'window and hidden titles');
+  const short = icsBlocks(icsParse(['BEGIN:VEVENT', 'SUMMARY:Stand-up', 'DTSTART:20261126T083000', 'DTEND:20261126T084500', 'END:VEVENT', 'BEGIN:VEVENT', 'SUMMARY:Note', 'DTSTART:20261126T100000', 'END:VEVENT'].join('\n')), 'S', '2026-11-26', '2026-11-26', false).blocks;
+  console.assert(short.map(b => `${b.start}-${b.end} ${b.title}`).join('|') === '8.5-9 Stand-up (08:30–08:45)|10-10.5 Note', 'a 15-minute event keeps its exact time; one without length takes half an hour: ' + short.map(b => b.title).join('|'));
   const keep3 = S; S = seed(); S.blocks = [{ id: 1, date: 'x', start: 0, end: 0, kind: 'booked', title: 'Trip', allDay: true, src: 'ics' }];
   console.assert(availableH('x') === 13 && hoursCol('x').includes('📅</span><div class="m"'), 'an all-day event takes no time and shows above the hours'); S = keep3;
   console.log('selftest done');

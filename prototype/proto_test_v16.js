@@ -204,6 +204,8 @@ function zip(files) { // [{ name, text }] → a zip with deflated entries, like 
   await expect('.slot.booked:has-text("📅 Board meeting")', 'meeting at its new time');
   await p.click('[data-a=menu]'); await p.click('[data-c=setting][data-k=icsHide]');
   await choose('[data-a=icsImport]', 'Family.ics', Buffer.from(family));
+  // the file is read asynchronously: wait for the import itself, not for an earlier toast
+  await p.waitForFunction(() => S.blocks.some(b => b.src === 'ics' && b.cal === 'Family' && b.title !== 'School run'), null, { timeout: 5000 }).catch(() => {});
   const fam = await p.evaluate(() => S.blocks.filter(b => b.src === 'ics' && b.cal === 'Family').map(b => b.title).join());
   if (fam !== 'Busy') problems.push('hidden titles should import as Busy: ' + fam);
   await p.click('[data-a=icsRemove][data-cal=Work]');

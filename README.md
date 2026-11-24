@@ -4,7 +4,7 @@
 
 ![Today in Pušis: a time column with a weekly rhythm, today's tasks, activities and a Don't forget list](docs/images/today.png)
 
-> **Status: beta.** In daily use by its author since November 2026; expect changes. Found a problem? [Open an issue](https://github.com/lyderisaz/pine-tmi/issues) — see [Releases](https://github.com/lyderisaz/pine-tmi/releases) for known limitations.
+> **Status: beta.** In daily use by its author since November 2026; expect changes. Found a problem? [Report a bug](https://github.com/lyderisaz/pine-tmi/issues/new?template=bug_report.yml). Missing something? [Suggest a feature](https://github.com/lyderisaz/pine-tmi/issues/new?template=feature_request.yml) or 👍 an [open idea](https://github.com/lyderisaz/pine-tmi/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement). Known limitations are listed in [Releases](https://github.com/lyderisaz/pine-tmi/releases).
 
 ## Try it
 
@@ -44,6 +44,8 @@ Every activity remains attached to the larger plan, so the important work stays 
 | ![Key areas with the task sheet and the activity sheet of the selected task](docs/images/key-areas.png) | ![Plan tomorrow with tasks to pick and tomorrow's time column](docs/images/plan-tomorrow.png) |
 | **Projects: at most three active, the rest in view** | **On a phone** |
 | ![Projects grouped by status, each with its way to money and next step](docs/images/projects.png) | <img src="docs/images/phone.png" alt="Today on a phone" width="260"> |
+| **Calendar import: meetings marked 📅, an all-day event above the hours** | **⚙ Settings → 📅 Calendar: one entry per imported calendar** |
+| ![Plan tomorrow with meetings imported from two calendars](docs/images/calendar.png) | ![The calendar card in Settings with Work and Family calendars](docs/images/calendar-settings.png) |
 
 The pictures use the built-in demo data (**⚙ → load demo**). `node docs/screenshots.js <playwright module path> <absolute path to index.html>` makes them again.
 
@@ -60,9 +62,10 @@ The pictures use the built-in demo data (**⚙ → load demo**). `node docs/scre
 1. Add your key areas and goals.
 2. Add tasks on each key area's task sheet, and projects in **Projects**.
 3. Split a task into concrete activities on its activity sheet (**Key areas**), and set your weekly rhythm in **⚙ Settings**.
-4. Each evening, pick tomorrow's tasks and times in **Plan tomorrow**; work from **Today**.
-5. Record what was completed and review the time ledger and balance views.
-6. Export a backup from **Settings** to protect your plans.
+4. Optional: import your meetings from Google, Apple or Outlook calendar in **⚙ Settings → 📅 Calendar**; import again when they change.
+5. Each evening, pick tomorrow's tasks and times in **Plan tomorrow**; work from **Today**.
+6. Record what was completed and review the time ledger and balance views.
+7. Export a backup from **Settings** to protect your plans.
 
 Open **? Help** in the app for contextual instructions and a fuller explanation of the method.
 
@@ -112,7 +115,10 @@ npx wrangler deploy
 
 ## Contributing
 
-Feedback and focused bug reports are welcome. Please include browser and device details, reproduction steps, and a screenshot or short recording when possible.
+Feedback is welcome, and the issue forms ask for what is needed:
+
+- **[Bug report](https://github.com/lyderisaz/pine-tmi/issues/new?template=bug_report.yml):** steps, version, browser and device, and where your data are saved. Remove personal names and plans from text and screenshots, and never attach a backup or calendar file.
+- **[Feature request](https://github.com/lyderisaz/pine-tmi/issues/new?template=feature_request.yml):** the situation first, then the idea. If the idea is already [open](https://github.com/lyderisaz/pine-tmi/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement), a 👍 helps more than a new issue.
 
 For code changes:
 
