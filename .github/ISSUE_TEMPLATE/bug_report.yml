@@ -1,0 +1,88 @@
+name: Bug report
+description: Something in Pušis does not work as it should
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a problem.
+
+        **Your plans are private.** Issues are public, so replace real names, tasks and notes with made-up ones in the text and screenshots. Never attach your backup file.
+
+        If something looks wrong with your data, export a backup first: **⚙ → Backup and data → export**.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Describe the problem in a sentence or two.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you click or type, in order?
+      placeholder: |
+        1. Open Plan tomorrow
+        2. Drag a task to 10:00
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where do you use Pušis?
+      options:
+        - Live app (pine-tmi.inventship.workers.dev)
+        - My own copy of index.html
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown next to the 🌲 Pušis logo, top left.
+      placeholder: v15
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Chrome 131 on Windows 11 / Safari on iPhone 15
+    validations:
+      required: true
+  - type: dropdown
+    id: storage
+    attributes:
+      label: Where are your data saved?
+      description: See ⚙ settings.
+      options:
+        - Only in this browser (default)
+        - A file on my computer
+        - Google Drive
+        - A shared database (my own server)
+        - I don't know
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or error messages
+      description: |
+        Drag images here. For error messages: press F12, open the Console tab and copy the red lines.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you send
+      options:
+        - label: I removed personal names, tasks and notes from the text and screenshots.
+          required: true
