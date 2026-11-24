@@ -79,7 +79,7 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo" title="Pušis prototype v12">🌲 Pušis <span class="m" style="font-size:10px">v12</span></span>
+ <span class="logo" title="Pušis prototype v13">🌲 Pušis <span class="m" style="font-size:10px">v13</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
@@ -465,7 +465,24 @@ function sortCandidates(list, ref) {
   const k = t => [t.deadline && t.deadline < ref ? 0 : 1, t.important ? 0 : 1, t.deadline || '9999', t.goalId ? 0 : 1];
   return [...list].sort((a, b) => { const x = k(a), y = k(b); for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return 0; });
 }
-const blocksOn = s => S.blocks.filter(b => b.date === s).sort((a, b) => a.start - b.start);
+// ---------- weekly rhythm (v13): a rule repeats a booked block on chosen weekdays ----------
+// Its blocks are not stored: blocksOn() adds them for each day. Changing one day stores a normal block with ruleId,
+// skipping one day stores the rule id in that day's skip list. Rules start at `from`, so history is never rewritten.
+const WEEK = [1, 2, 3, 4, 5, 6, 0];
+const ruleOn = (r, s) => !r.paused && r.days.includes(s2d(s).getDay()) && s >= r.from && (!r.to || s <= r.to);
+const blocksOn = s => {
+  const own = S.blocks.filter(b => b.date === s), skip = S.days[s]?.skip || [];
+  const rhythm = (S.rules || []).filter(r => ruleOn(r, s) && !skip.includes(r.id) && !own.some(b => b.ruleId === r.id))
+    .map(r => ({ id: -r.id, date: s, start: r.start, end: r.end, kind: 'booked', title: r.title, area: r.area, ruleId: r.id, rhythm: true }));
+  return [...own, ...rhythm].sort((a, b) => a.start - b.start);
+};
+const ruleDays = r => r.days.length === 7 ? 'every day' : WEEK.filter(d => r.days.includes(d)).map(d => WEEKDAYS[d].slice(0, 3)).join(' ');
+// ---------- projects (v13): at most 3 active, so attention stays on what earns ----------
+const ACTIVE_MAX = 3;
+const PSTATUS = [['active', '▶ active'], ['maintained', '◐ maintained'], ['paused', '⏸ paused'], ['closed', '✓ closed']];
+const project = pid => (S.projects || []).find(p => p.id === +pid);
+const canActivate = p => (S.projects || []).filter(x => x.status === 'active' && x !== p).length < ACTIVE_MAX;
+const projTag = t => { const p = project(t.projectId); return p ? ` <span class="m" title="project">📁 ${esc(p.name)}</span>` : ''; };
 const availableH = s => { const [a, z] = win(); return (z - a) - blocksOn(s).reduce((n, b) => n + Math.max(0, Math.min(b.end, z) - Math.max(b.start, a)), 0); };
 const fmtH = h => `${Math.floor(h)} h${h % 1 ? ' 30' : ''}`;
 
@@ -484,14 +501,14 @@ const VIEWS = { goals: 'WHAT', areas: 'WHAT', today: 'WHEN', plan: 'WHEN', dont:
 function nav() {
   const t = (v, label) => `<button class="tab ${U.view === v ? 'on' : ''}" data-a="go" data-v="${v}">${label}</button>`;
   document.getElementById('nav').innerHTML =
-    `<span class="grp what"><i>WHAT</i>${t('goals', '🌈 Goals')}${t('areas', '🔑 Key areas')}${coveyOn() ? t('matrix', '🧭 Matrix') : ''}</span>` +
+    `<span class="grp what"><i>WHAT</i>${t('goals', '🌈 Goals')}${t('projects', '📁 Projects')}${t('areas', '🔑 Key areas')}${coveyOn() ? t('matrix', '🧭 Matrix') : ''}</span>` +
     `<span class="grp when"><i>WHEN</i>${t('today', '🕘 Today')}${t('plan', '🌙 Plan tomorrow')}${t('dont', '✋ Don\'t forget')}${ledgerOn() ? t('ledger', '📊 Balance') : ''}</span>` +
     `<span class="grp info"><i>INFO</i>${t('notes', '✏️ Notes')}${t('people', '📞 People')}${t('ref', 'ℹ️ Reference')}</span>`;
   const late = S.tasks.filter(t => openTask(t) && t.deadline && t.deadline < TODAY).length + S.acts.filter(a => !a.done && a.by && a.by < TODAY).length;
   const n = S.notes.length + late, f = document.getElementById('flapsi');
   f.hidden = !set().flapsi; f.textContent = `Flapsi ${n}`; f.className = 'pill' + (n > 10 ? ' red' : n > 7 ? ' amber' : '');
 }
-function render() { S.people ||= []; S.refs ||= []; nav(); document.getElementById('app').innerHTML = V[U.view](); save(); }
+function render() { S.people ||= []; S.refs ||= []; S.projects ||= []; S.rules ||= []; nav(); document.getElementById('app').innerHTML = V[U.view](); save(); }
 
 // ---------- views ----------
 const V = {};
@@ -740,6 +757,9 @@ V.settings = () => {
     <div class="row"><span>Time ledger (Lyubishchev) <span class="m">(plan vs actual, lost time, 📊 Balance, estimating accuracy)</span></span><input type="checkbox" data-c="setting" data-k="ledger" ${st.ledger ? 'checked' : ''}></div>
     <div class="row"><span>Covey matrix <span class="m">(important × urgent quadrants, 🧭 Matrix, Q2 share)</span></span><input type="checkbox" data-c="setting" data-k="covey" ${st.covey ? 'checked' : ''}></div>
     ${st.covey ? `<div class="row"><span>"Urgent" means due within</span>${sel('urgentDays', [1, 2, 3, 5, 7, 14].map(d => [d, d + (d === 1 ? ' day' : ' days')]), st.urgentDays)}</div>` : ''}</div>
+  <div class="card"><h3>🔁 Weekly rhythm <span class="m" style="text-transform:none;letter-spacing:0">booked blocks that repeat: sleep, sport, sales hours…</span></h3>
+    ${S.rules.filter(r => !r.to || r.to >= TODAY).sort((a, b) => a.start - b.start).map(r => `<div class="row"><span class="grow ${r.paused ? 'done' : ''}"><b>${hh(r.start)}–${hh(r.end)}</b> ${esc(r.title)} <span class="m">· ${ruleDays(r)}${area(r.area) ? ' · ' + esc(`${r.area} ${area(r.area).name}`) : ''}${r.paused ? ' · paused' : ''}${r.from > TODAY ? ' · from ' + r.from : ''}</span></span><button data-a="ruleEdit" data-id="${r.id}">edit</button></div>`).join('') || '<div class="empty">No rhythm yet.</div>'}
+    <div class="btns" style="justify-content:flex-start"><button class="pri" data-a="ruleEdit">+ block</button></div></div>
   ${API ? `<div class="card"><h3>🔄 Shared database <span class="m" style="text-transform:none;letter-spacing:0">all your signed-in devices</span></h3>
     <div class="row"><span>${pill('apill')}</span><button data-a="apill">sync now</button></div></div>` : `
   <div class="card"><h3>📁 Save to a file <span class="m" style="text-transform:none;letter-spacing:0">Chrome or Edge on a computer · no sign-in</span></h3>
@@ -793,6 +813,20 @@ V.goals = () => {
   return `<h2>🌈 Goals <span class="m">— the decision base. ○○ draft → ●○ signed (committed) → ●● achieved</span></h2><div class="grid2">${side('personal', 'Personal')}${side('work', 'Work')}</div>`;
 };
 
+V.projects = () => {
+  const open = p => S.tasks.filter(t => t.projectId === p.id && openTask(t)).sort((x, y) => (x.deadline || '9999').localeCompare(y.deadline || '9999'));
+  const card = p => { const a = area(p.area), g = goal(p.goalId), ts = open(p);
+    return `<div class="card"><h3 style="font-size:14px;color:var(--fg);text-transform:none;letter-spacing:0"><span>📁 ${esc(p.name)}${linkTag(p.link)}</span><button data-a="projectEdit" data-id="${p.id}">edit</button></h3>
+      <div class="m">${a ? esc(`${a.slot} ${a.name}`) : 'no key area'}${g ? ` · serves ${esc(`${g.side === 'work' ? 'W' : 'P'}${g.slot} ${g.title}`)}` : ''}${p.decision ? ` · decide by ${esc(p.decision)}` : ''}</div>
+      ${p.money ? `<div class="row"><span>💶 ${esc(p.money)}</span></div>` : ''}
+      <div class="row"><span><b>Next:</b> ${p.next ? esc(p.next) : '<span class="late">no next step</span>'}</span></div>
+      ${ts.map(t => `<div class="row clk" data-a="taskEdit" data-id="${t.id}"><span class="grow"><span class="code">${tcode(t)}</span>${t.important ? '<span class="imp">!</span>' : ''}${esc(t.what)}${whoTag(t.who)}</span>${dueTag(t.deadline, TODAY)}</div>`).join('') || '<div class="empty">No open tasks.</div>'}</div>`; };
+  const group = ([st, label]) => { const ps = S.projects.filter(p => p.status === st);
+    return ps.length || st === 'active' ? `<h3 style="margin-top:14px">${label} · ${ps.length}${st === 'active' ? ` / ${ACTIVE_MAX}` : ''}</h3><div class="grid2">${ps.map(card).join('') || '<div class="empty">No active project. Choose the ones closest to money.</div>'}</div>` : ''; };
+  return `<h2>📁 Projects <span class="m">— at most ${ACTIVE_MAX} active; each needs a next step and its way to money</span></h2>
+    <div class="btns" style="justify-content:flex-start"><button class="pri" data-a="projectEdit">+ project</button></div>${PSTATUS.map(group).join('')}`;
+};
+
 V.areas = () => {
   const a = area(U.area);
   const list = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(slot => {
@@ -816,7 +850,7 @@ V.areas = () => {
     mid = `<div class="card"><div class="sheethead"><span>🔑 ${esc(a.name)} — task sheet</span><span># ${a.slot} <button class="link" style="color:#fff" data-a="areaEdit" data-slot="${a.slot}">edit area</button></span></div>
       ${a.desc ? `<div class="m">${esc(a.desc)}${a.goalIds.length ? ' · serves ' + a.goalIds.map(g => goal(g)).filter(Boolean).map(g => esc(g.title)).join(', ') : ''}</div>` : ''}
       <table class="sheet"><tr><th>#</th><th>!</th><th>Task</th><th>Who</th><th>⏰</th><th>Goal</th><th>✓</th></tr>
-      ${ts.map(t => `<tr class="clk ${sel && sel.id === t.id ? 'sel' : ''}" data-a="pickTask" data-id="${t.id}"><td class="code">${tcode(t)}</td><td class="imp">${t.important ? '!' : ''}</td><td class="${t.status === 'done' ? 'done' : ''}">${t.status === 'open' ? qTag(t) : ''}${esc(t.what)}${linkTag(t.link)}</td><td>${esc(t.who || 'me')}</td><td>${dueTag(t.deadline, TODAY)}</td><td class="m">${esc(goalLabel(t))}</td><td>${t.kind === 'ongoing' ? '<span class="m" title="ongoing task">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${t.id}" ${t.status === 'done' ? 'checked' : ''}>`}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No tasks yet.</td></tr>'}
+      ${ts.map(t => `<tr class="clk ${sel && sel.id === t.id ? 'sel' : ''}" data-a="pickTask" data-id="${t.id}"><td class="code">${tcode(t)}</td><td class="imp">${t.important ? '!' : ''}</td><td class="${t.status === 'done' ? 'done' : ''}">${t.status === 'open' ? qTag(t) : ''}${esc(t.what)}${linkTag(t.link)}${projTag(t)}</td><td>${esc(t.who || 'me')}</td><td>${dueTag(t.deadline, TODAY)}</td><td class="m">${esc(goalLabel(t))}</td><td>${t.kind === 'ongoing' ? '<span class="m" title="ongoing task">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${t.id}" ${t.status === 'done' ? 'checked' : ''}>`}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No tasks yet.</td></tr>'}
       </table><div class="btns" style="justify-content:flex-start"><button class="pri" data-a="taskEdit">+ task</button>${sel ? `<button data-a="taskEdit" data-id="${sel.id}">edit ${tcode(sel)}</button>` : ''}</div></div>`;
     if (sel && sel.area === a.slot) {
       const as = S.acts.filter(x => x.taskId === sel.id).sort((x, y) => x.n - y.n);
@@ -838,13 +872,13 @@ function hoursCol(s) {
     if (!b) { out += `<span class="h">${hh(h)}</span><div class="slot" data-a="booked" data-date="${s}" data-h="${h}">available</div>`; continue; }
     const first = b.start === h || (h === W0 && b.start < h), t = task(b.taskId), a = area(b.area);
     const label = b.kind === 'planned' && t ? `<span class="code">${tcode(t)}</span>${esc(t.what)}` : esc(b.title);
-    out += `<span class="h">${hh(h)}</span><div class="slot ${b.kind} ${first ? '' : 'cont'}" data-a="blockEdit" data-id="${b.id}" ${b.kind === 'planned' && a ? `style="border-left-color:${a.colour}"` : ''}>${first ? `${label} <span class="m" style="color:inherit;opacity:.8">${hh(b.start)}–${hh(b.end)}</span>` : '↳'}</div>`;
+    out += `<span class="h">${hh(h)}</span><div class="slot ${b.kind} ${first ? '' : 'cont'}" data-a="blockEdit" data-id="${b.id}" data-date="${s}" ${b.kind === 'planned' && a ? `style="border-left-color:${a.colour}"` : ''}>${first ? `${b.ruleId ? '🔁 ' : ''}${label} <span class="m" style="color:inherit;opacity:.8">${hh(b.start)}–${hh(b.end)}</span>` : '↳'}</div>`;
   }
   return `<div class="hours">${out}</div>`;
 }
 function listCard(title, items, kind, s) {
   const row = x => kind === 'task'
-    ? `<div class="row"><span class="grow ${x.status === 'done' ? 'done' : ''}"><span class="code">${tcode(x)}</span>${x.important ? '<span class="imp">!</span>' : ''}${x.status === 'open' ? qTag(x, s) : ''}${esc(x.what)}${whoTag(x.who)}${linkTag(x.link)} ${dueTag(x.deadline, s)}</span>${x.kind === 'ongoing' ? '<span class="m">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${x.id}" ${x.status === 'done' ? 'checked' : ''}>`}</div>`
+    ? `<div class="row"><span class="grow ${x.status === 'done' ? 'done' : ''}"><span class="code">${tcode(x)}</span>${x.important ? '<span class="imp">!</span>' : ''}${x.status === 'open' ? qTag(x, s) : ''}${esc(x.what)}${whoTag(x.who)}${linkTag(x.link)}${projTag(x)} ${dueTag(x.deadline, s)}</span>${x.kind === 'ongoing' ? '<span class="m">∞</span>' : `<input type="checkbox" data-c="taskDone" data-id="${x.id}" ${x.status === 'done' ? 'checked' : ''}>`}</div>`
     : `<div class="row"><span class="grow ${x.done ? 'done' : ''}">${{ do: '', call: '📞 ', email: '@ ' }[x.kind]}<span class="code">${acode(x)}</span>${esc(x.what)}${whoTag(x.who)}${linkTag(x.link)} ${dueTag(x.by, s)}</span><input type="checkbox" data-c="actDone" data-id="${x.id}" ${x.done ? 'checked' : ''}></div>`;
   return `<div class="card"><h3>${title}</h3>${items.map(row).join('') || '<div class="empty">Nothing.</div>'}</div>`;
 }
@@ -882,7 +916,7 @@ V.plan = () => {
         ${k === 't' && x.kind === 'ongoing' ? '' : `<button data-a="close" data-k="${k}" data-id="${x.id}" data-to="done">✓ done</button>`}<button data-a="close" data-k="${k}" data-id="${x.id}" data-to="tomorrow">→ tomorrow</button><button data-a="close" data-k="${k}" data-id="${x.id}" data-to="sheet">→ back to sheet</button></div>`).join('') || '<div class="empty">Nothing open. Well done.</div>'}
       <div class="m" style="margin-top:6px">"Back to sheet" removes it from the day; it stays on its task sheet with its deadline.</div></div><div class="col">${stripCard(from, true)}${ledgerOn() ? lostCard(from) : ''}</div></div>`;
   } else if (st === 2) {
-    body = `<div class="grid2"><div class="card"><h3>Booked slots for ${dayName(s)} <span>available ${fmtH(availableH(s))}</span></h3>${hoursCol(s)}</div><div class="card m">Enter what is already fixed tomorrow: meetings, calls, appointments, school runs. On paper these come from the monthly view. Click a free hour to book it.</div></div>`;
+    body = `<div class="grid2"><div class="card"><h3>Booked slots for ${dayName(s)} <span>available ${fmtH(availableH(s))}</span></h3>${hoursCol(s)}</div><div class="card m">Enter what is already fixed tomorrow: meetings, calls, appointments, school runs. On paper these come from the monthly view. Click a free hour to book it. 🔁 blocks come from your <button class="link" data-a="go" data-v="settings">weekly rhythm</button>; click one to change or skip it for this day.</div></div>`;
   } else if (st === 3) {
     const el = S.tasks.filter(t => openTask(t) && t.elephant);
     body = `<div class="card" style="max-width:640px"><h3>🐘 Elephant of the day</h3>
@@ -969,6 +1003,7 @@ function newTask(slot, v) {
 function setTask(t, v) {
   Object.assign(t, { what: v.what, kind: v.kind, important: v.important, who: v.who || 'me', deadline: v.deadline, estimate: +v.estimate || 0, link: v.link, elephant: v.elephant });
   const [g, m] = (v.goal || ':').split(':'); t.goalId = g ? +g : null; t.ms = +m || 0;
+  if ('project' in v) t.projectId = v.project ? +v.project : null;
   if (t.kind === 'ongoing' && t.status === 'done') t.status = 'open';
 }
 
@@ -1047,6 +1082,7 @@ const A = {
       [{ k: 'kind', label: 'Kind', type: 'select', value: t?.kind || 'temporary', options: [['temporary', 'temporary (has an end)'], ['ongoing', 'ongoing (never done)']] }, { k: 'who', label: 'Who', value: t?.who || 'me', list: 'people' }],
       [{ k: 'deadline', label: '⏰ Deadline', type: 'date', value: t?.deadline }, { k: 'estimate', label: 'Estimate (h)', type: 'number', value: t?.estimate || '' }],
       { k: 'goal', label: 'Serves goal / milestone', type: 'select', value: t?.goalId ? `${t.goalId}:${t.ms || 0}` : '', options: goalOpts() },
+      { k: 'project', label: '📁 Project', type: 'select', value: t?.projectId || '', options: [['', '—'], ...S.projects.filter(p => p.status !== 'closed' || p.id === t?.projectId).map(p => [p.id, p.name])] },
       { k: 'link', label: '🔗 Link (URL or file path, optional)', value: t?.link },
       [{ k: 'important', label: '! important', type: 'check', value: t?.important }, { k: 'elephant', label: '🐘 elephant task', type: 'check', value: t?.elephant }]],
       v => { if (+v.estimate > 8) toast('Over 8 h: split it into activities or treat it as an elephant'); const x = t || newTask(a.slot, v); setTask(x, v); U.task = x.id; },
@@ -1104,8 +1140,43 @@ const A = {
       const hit = blocksOn(o.date).filter(x => x.kind === 'planned' && x.start < b && a < x.end);
       hit.forEach(x => { S.blocks = S.blocks.filter(y => y !== x); toast('A planned task lost its slot — replan it'); });
       S.blocks.push({ id: id(), date: o.date, start: a, end: b, kind: 'booked', title: v.title, area: v.area ? +v.area : null }); }),
-  blockEdit: o => { const b = S.blocks.find(x => x.id === +o.id);
-    if (confirm(`Remove "${b.kind === 'planned' && task(b.taskId) ? task(b.taskId).what : b.title}" ${hh(b.start)}–${hh(b.end)}?`)) { S.blocks = S.blocks.filter(x => x !== b); render(); } },
+  blockEdit: o => { const b = blocksOn(o.date).find(x => x.id === +o.id);
+    if (b.rhythm) { const r = S.rules.find(x => x.id === b.ruleId), t2h = s => { const [h, m] = s.split(':').map(Number); return h + (m >= 30 ? 0.5 : 0); };
+      return form(`🔁 ${r.title} · ${dayName(o.date)}`, [{ k: 'title', label: 'What (this day only)', value: r.title, req: true },
+        [{ k: 'from', label: 'From', type: 'select', value: hh(r.start), options: HALF_HOURS }, { k: 'to', label: 'To', type: 'select', value: hh(r.end), options: HALF_HOURS }]],
+        v => { const a = t2h(v.from), z = t2h(v.to); if (!(z > a)) { toast('End must be after start'); return false; }
+          S.blocks.push({ id: id(), date: o.date, start: a, end: z, kind: 'booked', title: v.title, area: r.area, ruleId: r.id }); },
+        [['skip this day', () => { (day(o.date).skip ||= []).push(r.id); }], ['edit the rhythm', () => { setTimeout(() => A.ruleEdit({ id: r.id })); }]]); }
+    if (confirm(`Remove "${b.kind === 'planned' && task(b.taskId) ? task(b.taskId).what : b.title}" ${hh(b.start)}–${hh(b.end)}?`)) {
+      S.blocks = S.blocks.filter(x => x !== b); if (b.ruleId) (day(b.date).skip ||= []).push(b.ruleId); render(); } },
+  ruleEdit: o => { const r = o.id ? S.rules.find(x => x.id === +o.id) : null, t2h = s => { const [h, m] = s.split(':').map(Number); return h + (m >= 30 ? 0.5 : 0); };
+    form(r ? `🔁 ${r.title}` : '🔁 New weekly block', [
+      { k: 'title', label: 'What', value: r?.title, req: true, ph: 'Sleep, strength training, sales calls…' },
+      WEEK.map(d => ({ k: 'd' + d, label: WEEKDAYS[d].slice(0, 3), type: 'check', value: r ? r.days.includes(d) : d >= 1 && d <= 5 })),
+      [{ k: 'from', label: 'From', type: 'select', value: hh(r ? r.start : 9), options: HALF_HOURS }, { k: 'to', label: 'To', type: 'select', value: hh(r ? r.end : 10), options: HALF_HOURS },
+       { k: 'area', label: 'Key area', type: 'select', value: r?.area || '', options: [['', '—'], ...areaOpts(false)] }],
+      { k: 'paused', label: 'paused', type: 'check', value: r?.paused }],
+      v => { const days = WEEK.filter(d => v['d' + d]), a = t2h(v.from), z = t2h(v.to);
+        if (!days.length) { toast('Choose at least one day'); return false; }
+        if (!(z > a)) { toast('End must be after start'); return false; }
+        const data = { title: v.title, days, start: a, end: z, area: v.area ? +v.area : null, paused: v.paused };
+        if (!r) S.rules.push({ id: id(), ...data, from: TODAY, to: '' });
+        else if (r.from < TODAY) { r.to = addDays(TODAY, -1); S.rules.push({ id: id(), ...data, from: TODAY, to: '' }); } // past days keep the old rule
+        else Object.assign(r, data); },
+      r ? [['end it', () => { if (r.from < TODAY) r.to = addDays(TODAY, -1); else S.rules = S.rules.filter(x => x !== r); }]] : []); },
+  projectEdit: o => { const p = o.id ? project(o.id) : null;
+    form(p ? `📁 ${p.name}` : '📁 New project', [
+      { k: 'name', label: 'Project', value: p?.name, req: true },
+      [{ k: 'status', label: 'Status', type: 'select', value: p?.status || (canActivate(null) ? 'active' : 'paused'), options: PSTATUS }, { k: 'area', label: 'Key area', type: 'select', value: p?.area || U.area || 1, options: areaOpts(false) }],
+      { k: 'goal', label: 'Serves goal', type: 'select', value: p?.goalId ? `${p.goalId}:0` : '', options: goalOpts().filter(([v]) => !v || v.endsWith(':0')) },
+      { k: 'money', label: '💶 Way to money', value: p?.money, ph: 'e.g. seminar → 4-day group' },
+      { k: 'next', label: 'Next step', value: p?.next, ph: 'one concrete action' },
+      [{ k: 'decision', label: 'Decide by (optional)', type: 'date', value: p?.decision }, { k: 'link', label: '🔗 Link (optional)', value: p?.link }]],
+      v => { if (v.status === 'active' && p?.status !== 'active' && !canActivate(p)) { toast(`At most ${ACTIVE_MAX} active projects — pause or close one first`, 5000); return false; }
+        const data = { name: v.name, status: v.status, area: +v.area, goalId: v.goal ? +v.goal.split(':')[0] : null, money: v.money, next: v.next, decision: v.decision, link: v.link };
+        if (p) Object.assign(p, data); else S.projects.push({ id: id(), ...data }); },
+      p ? [['delete', () => { if (!confirm(`Delete project "${p.name}"? Its tasks stay in their key areas.`)) return false;
+        S.projects = S.projects.filter(x => x !== p); S.tasks.forEach(t => { if (t.projectId === p.id) t.projectId = null; }); }]] : []); },
   step: o => { U.step = +o.n; render(); },
   close: o => { const s = addDays(U.date, 1), from = day(U.date), to = day(s), k = o.k === 't' ? 'tasks' : 'acts', x = o.k === 't' ? task(o.id) : act(o.id);
     if (o.to === 'done') { if (o.k === 't') { x.status = 'done'; x.doneAt = U.date; askActual(x); } else x.done = true; }
@@ -1203,6 +1274,13 @@ function selfTest() {
   console.assert(JSON.stringify(round) === JSON.stringify(itemsOf(D)), 'state survives the trip to the database');
   const bad = stateOf({ 'task:1"><b>': { what: 'x' }, 'day:x"': {}, 'area:12': { name: 'x' }, 'task:5': { id: '"><b>', what: 'y' } });
   console.assert(bad.tasks.length === 1 && bad.tasks[0].id === 5 && !Object.keys(bad.days).length && bad.areas.length === 5, 'unknown keys are left out, ids come from keys');
+  const keep2 = S; S = seed(); S.rules = [{ id: 7, title: 'Gym', days: [1, 3], start: 9, end: 10, area: null, from: '2026-11-02', to: '' }];
+  console.assert(blocksOn('2026-11-23').length === 1 && blocksOn('2026-11-24').length === 0 && blocksOn('2026-10-26').length === 0, 'rule on its weekdays, from its start');
+  S.days['2026-11-25'] = { skip: [7] }; S.blocks = [{ id: 1, date: '2026-11-30', start: 11, end: 12, kind: 'booked', title: 'Gym later', ruleId: 7 }];
+  console.assert(blocksOn('2026-11-25').length === 0 && blocksOn('2026-11-30').length === 1 && blocksOn('2026-11-30')[0].start === 11, 'skip and one-day change replace the rule block');
+  console.assert(availableH('2026-11-23') === 12 && areaMinutes('2026-11-23').plan.none === 60, 'rhythm counts in free time and in the ledger');
+  S.projects = [1, 2, 3].map(i => ({ id: i, status: 'active' }));
+  console.assert(!canActivate(null) && canActivate(S.projects[0]), 'at most 3 active projects'); S = keep2;
   console.log('selftest done');
 }
 if (location.hash === '#test') selfTest();
