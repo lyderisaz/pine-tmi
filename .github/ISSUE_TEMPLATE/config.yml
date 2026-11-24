@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Known limitations
+    url: https://github.com/lyderisaz/pine-tmi/releases
+    about: Check the latest release notes before reporting; some limits are known.

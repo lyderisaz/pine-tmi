@@ -8,6 +8,7 @@
 !/GOOGLE_SETUP.md
 !/wrangler.toml
 !/.assetsignore
+!/.github/
 !/prototype/
 /prototype/*
 !/prototype/pusis_proto_v2.html
