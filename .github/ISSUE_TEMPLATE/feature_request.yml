@@ -1,0 +1,40 @@
+name: Feature request
+description: An idea that would make Pušis more useful to you
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the idea. Issues are public, so describe your situation in general terms and leave out personal names and plans.
+
+        Ideas that are already open are listed under [enhancement](https://github.com/lyderisaz/pine-tmi/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement). If yours is there, a 👍 on it helps more than a new issue.
+  - type: textarea
+    id: situation
+    attributes:
+      label: What are you trying to do?
+      description: The situation, not the solution. For example "I plan my week on Sunday evening and keep forgetting fixed meetings".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: How you imagine it in Pušis. A sketch or a screenshot of another app is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: How do you manage today?
+      description: A workaround, another app, paper…
+  - type: dropdown
+    id: often
+    attributes:
+      label: How often would you use it?
+      options:
+        - Every day
+        - Every week
+        - Now and then
+    validations:
+      required: true
