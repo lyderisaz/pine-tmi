@@ -79,7 +79,7 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo" title="Pušis prototype v13">🌲 Pušis <span class="m" style="font-size:10px">v13</span></span>
+ <span class="logo" title="Pušis prototype v14">🌲 Pušis <span class="m" style="font-size:10px">v14</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
@@ -479,7 +479,7 @@ const blocksOn = s => {
 const ruleDays = r => r.days.length === 7 ? 'every day' : WEEK.filter(d => r.days.includes(d)).map(d => WEEKDAYS[d].slice(0, 3)).join(' ');
 // ---------- projects (v13): at most 3 active, so attention stays on what earns ----------
 const ACTIVE_MAX = 3;
-const PSTATUS = [['active', '▶ active'], ['maintained', '◐ maintained'], ['paused', '⏸ paused'], ['closed', '✓ closed']];
+const PSTATUS = [['active', '▶ active'], ['planned', '◌ planned, not started'], ['maintained', '◐ maintained'], ['paused', '⏸ paused'], ['closed', '✓ closed']];
 const project = pid => (S.projects || []).find(p => p.id === +pid);
 const canActivate = p => (S.projects || []).filter(x => x.status === 'active' && x !== p).length < ACTIVE_MAX;
 const projTag = t => { const p = project(t.projectId); return p ? ` <span class="m" title="project">📁 ${esc(p.name)}</span>` : ''; };
@@ -501,7 +501,7 @@ const VIEWS = { goals: 'WHAT', areas: 'WHAT', today: 'WHEN', plan: 'WHEN', dont:
 function nav() {
   const t = (v, label) => `<button class="tab ${U.view === v ? 'on' : ''}" data-a="go" data-v="${v}">${label}</button>`;
   document.getElementById('nav').innerHTML =
-    `<span class="grp what"><i>WHAT</i>${t('goals', '🌈 Goals')}${t('projects', '📁 Projects')}${t('areas', '🔑 Key areas')}${coveyOn() ? t('matrix', '🧭 Matrix') : ''}</span>` +
+    `<span class="grp what"><i>WHAT</i>${t('goals', '🌈 Goals')}${t('areas', '🔑 Key areas')}${t('projects', '📁 Projects')}${coveyOn() ? t('matrix', '🧭 Matrix') : ''}</span>` +
     `<span class="grp when"><i>WHEN</i>${t('today', '🕘 Today')}${t('plan', '🌙 Plan tomorrow')}${t('dont', '✋ Don\'t forget')}${ledgerOn() ? t('ledger', '📊 Balance') : ''}</span>` +
     `<span class="grp info"><i>INFO</i>${t('notes', '✏️ Notes')}${t('people', '📞 People')}${t('ref', 'ℹ️ Reference')}</span>`;
   const late = S.tasks.filter(t => openTask(t) && t.deadline && t.deadline < TODAY).length + S.acts.filter(a => !a.done && a.by && a.by < TODAY).length;
@@ -1167,12 +1167,12 @@ const A = {
   projectEdit: o => { const p = o.id ? project(o.id) : null;
     form(p ? `📁 ${p.name}` : '📁 New project', [
       { k: 'name', label: 'Project', value: p?.name, req: true },
-      [{ k: 'status', label: 'Status', type: 'select', value: p?.status || (canActivate(null) ? 'active' : 'paused'), options: PSTATUS }, { k: 'area', label: 'Key area', type: 'select', value: p?.area || U.area || 1, options: areaOpts(false) }],
+      [{ k: 'status', label: 'Status', type: 'select', value: p?.status || (canActivate(null) ? 'active' : 'planned'), options: PSTATUS }, { k: 'area', label: 'Key area', type: 'select', value: p?.area || U.area || 1, options: areaOpts(false) }],
       { k: 'goal', label: 'Serves goal', type: 'select', value: p?.goalId ? `${p.goalId}:0` : '', options: goalOpts().filter(([v]) => !v || v.endsWith(':0')) },
       { k: 'money', label: '💶 Way to money', value: p?.money, ph: 'e.g. seminar → 4-day group' },
       { k: 'next', label: 'Next step', value: p?.next, ph: 'one concrete action' },
       [{ k: 'decision', label: 'Decide by (optional)', type: 'date', value: p?.decision }, { k: 'link', label: '🔗 Link (optional)', value: p?.link }]],
-      v => { if (v.status === 'active' && p?.status !== 'active' && !canActivate(p)) { toast(`At most ${ACTIVE_MAX} active projects — pause or close one first`, 5000); return false; }
+      v => { if (v.status === 'active' && p?.status !== 'active' && !canActivate(p)) { toast(`At most ${ACTIVE_MAX} active projects — keep this one planned, or pause or close one first`, 5000); return false; }
         const data = { name: v.name, status: v.status, area: +v.area, goalId: v.goal ? +v.goal.split(':')[0] : null, money: v.money, next: v.next, decision: v.decision, link: v.link };
         if (p) Object.assign(p, data); else S.projects.push({ id: id(), ...data }); },
       p ? [['delete', () => { if (!confirm(`Delete project "${p.name}"? Its tasks stay in their key areas.`)) return false;
