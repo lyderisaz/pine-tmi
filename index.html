@@ -79,13 +79,14 @@ dialog::backdrop { background:rgba(0,0,0,.35); }
 @media (max-width:820px) { .grid2, .grid3 { grid-template-columns:1fr; } .strip { grid-template-columns:repeat(5, 1fr); } }
 </style></head><body>
 <header>
- <span class="logo" title="Pušis prototype v11">🌲 Pušis <span class="m" style="font-size:10px">v11</span></span>
+ <span class="logo" title="Pušis prototype v12">🌲 Pušis <span class="m" style="font-size:10px">v12</span></span>
  <nav id="nav"></nav>
  <span class="sp"></span>
  <span id="flapsi" class="pill" title="Loose things: notes in inbox + overdue tasks and activities (Pušis extension, not a TMI rule)"></span>
  <button class="plus" data-a="capture" title="Capture (N)">+</button>
  <span id="fpill" class="pill clk" data-a="fpill" hidden></span>
  <span id="cloud" class="pill clk" data-a="cloud" hidden></span>
+ <span id="apill" class="pill clk" data-a="apill" hidden></span>
  <button data-a="help" title="Help: using Pušis and the method">?</button>
  <button data-a="menu" title="Settings, sync and backup">⚙</button>
 </header>
@@ -110,7 +111,7 @@ let lastBody = bodyOf(S);
 function save() { // only real data changes count: they get a timestamp and go to Drive when connected
   const b = bodyOf(S); if (b === lastBody) return; lastBody = b; S.savedAt = new Date().toISOString();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Could not save in this browser — export a backup (⋯)'); }
-  gQueue(); fQueue();
+  if (API) aQueue(); else { gQueue(); fQueue(); }
 }
 // ---------- Google Drive sync (optional, plan_v5 §3a) ----------
 // The access token lives in memory only; client ID, file id and last remote time stay in this browser (SYNC key).
@@ -219,7 +220,7 @@ function gQueue() {
     } catch (e) { if (G.state !== 'connect') { G.lastError = e.message; cloud('error'); } }
   }, 4000);
 }
-const driveNote = () => (SC.connected ? ' Your Drive copy will be replaced too on the next sync.' : '') + (FS.handle ? ' Your data file will be replaced too.' : '');
+const driveNote = () => (API ? ' This changes the shared database on all your devices too.' : '') + (SC.connected ? ' Your Drive copy will be replaced too on the next sync.' : '') + (FS.handle ? ' Your data file will be replaced too.' : '');
 // ---------- File sync (optional, option A): one JSON file, e.g. inside the Google Drive for desktop folder ----------
 // Chrome/Edge on a computer only (File System Access API); no Google sign-in. The file handle is kept in IndexedDB,
 // so on the next visit one click ("📁 allow") is enough, or none when the browser remembers the permission.
@@ -285,16 +286,148 @@ function fQueue() {
     } catch (e) { FS.lastError = e.message; fpill('error'); }
   }, 1500);
 }
+// ---------- Shared database (v12, private copy only) ----------
+// Used when the page names its API: <meta name="pusis-api" content="/api">. The public demo has no such tag and keeps
+// its data in the browser. Each change sends only the objects that differ from the last synced copy; other devices'
+// changes arrive every minute and when the page comes back into view. Nothing is overwritten without asking.
+const API = document.querySelector('meta[name="pusis-api"]')?.content || '';
+const ASK = 'pusis.api';
+const AP = { state: '', timer: null, busy: false, again: false, lastError: '', conflicts: [], stale: false };
+let AS; try { AS = JSON.parse(localStorage.getItem(ASK)); } catch (e) { AS = null; } // { cursor, rev: { key: n }, base: { key: JSON text } }
+const asSave = () => { try { localStorage.setItem(ASK, JSON.stringify(AS)); } catch (e) { toast('Could not save in this browser — export a backup (⚙)'); } };
+const LISTS = { goal: 'goals', task: 'tasks', act: 'acts', minor: 'minors', idea: 'ideas', note: 'notes', block: 'blocks', person: 'people', ref: 'refs', project: 'projects', rule: 'rules' };
+const KEY_OK = { area: /^[1-9]$/, day: /^\d{4}-\d{2}-\d{2}$/, setting: /^settings$/ };
+function itemsOf(x) { // the state as { "kind:id": JSON text }
+  const out = {};
+  for (const [k, list] of Object.entries(LISTS)) for (const o of x[list] || []) out[`${k}:${o.id}`] = JSON.stringify(o);
+  for (const a of x.areas || []) out[`area:${a.slot}`] = JSON.stringify(a);
+  for (const [d, o] of Object.entries(x.days || {})) out[`day:${d}`] = JSON.stringify(o);
+  if (x.settings) out['setting:settings'] = JSON.stringify(x.settings);
+  return out;
+}
+function stateOf(items) { // { "kind:id": object } → S; keys this app never makes are left out, ids come from the key
+  const x = seed(); x.areas = []; x.days = {};
+  for (const [key, o] of Object.entries(items)) {
+    const i = key.indexOf(':'), kind = key.slice(0, i), kid = key.slice(i + 1);
+    if (!o || typeof o !== 'object' || !(KEY_OK[kind] || /^\d{1,16}$/).test(kid)) continue;
+    if (kind === 'area') x.areas.push({ ...o, slot: +kid });
+    else if (kind === 'day') x.days[kid] = o;
+    else if (kind === 'setting') x.settings = o;
+    else if (LISTS[kind]) (x[LISTS[kind]] ||= []).push({ ...o, id: +kid });
+  }
+  for (const list of Object.values(LISTS)) (x[list] || []).sort((a, b) => a.id - b.id);
+  x.areas.sort((a, b) => a.slot - b.slot);
+  if (!x.areas.length) x.areas = seed().areas;
+  return x;
+}
+const parsed = o => Object.fromEntries(Object.entries(o).map(([k, j]) => [k, JSON.parse(j)]));
+function apill(state) {
+  AP.state = state; const el = document.getElementById('apill'), n = AP.conflicts.length;
+  el.hidden = !API;
+  el.textContent = { saved: `🔄 ${stamp().slice(11)}`, saving: '🔄 saving…', offline: '🔄 offline', signin: '🔄 sign in', conflict: `⚠ ${n} conflict${n > 1 ? 's' : ''}`, error: '🔄 error' }[state] || '🔄';
+  el.className = 'pill clk' + (['conflict', 'error', 'signin'].includes(state) ? ' red' : state === 'offline' ? ' amber' : '');
+  el.title = { offline: 'No connection: your changes stay here and are sent later', signin: 'Your sign-in has ended: click to sign in again', conflict: 'Also changed on another device: click to choose', error: `${AP.lastError} — click to retry` }[state] || 'Shared database: click to sync now';
+}
+async function aFetch(path, body) {
+  let r;
+  try { r = await fetch(API + path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', redirect: 'manual', cache: 'no-store', ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) }); }
+  catch (e) { throw Object.assign(new Error('offline'), { why: 'offline' }); }
+  // an ended Access session answers with a redirect to its login page, not with JSON
+  if (r.type === 'opaqueredirect' || r.status === 401 || !(r.headers.get('content-type') || '').includes('json')) throw Object.assign(new Error('sign in'), { why: 'signin' });
+  if (!r.ok) throw new Error(`server ${r.status}`);
+  return r.json();
+}
+function unsent() { // this device's changes since the last sync: { key: JSON text, or null when deleted }
+  const cur = itemsOf(S), out = {};
+  for (const [k, j] of Object.entries(cur)) if (AS.base[k] !== j) out[k] = j;
+  for (const k of Object.keys(AS.base)) if (!(k in cur)) out[k] = null;
+  return out;
+}
+function adopt(items) { // replace S without counting it as our own change
+  S = stateOf(items); lastBody = bodyOf(S);
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+}
+async function aLoad() { // the whole state from the server; unsent changes made here are kept and sent next
+  const st = await aFetch('/state');
+  const mine = AS ? unsent() : st.items.length ? {} : itemsOf(S); // the first device fills an empty server
+  AS = { cursor: st.cursor, rev: {}, base: {} };
+  for (const it of st.items) { const k = `${it.kind}:${it.id}`; AS.base[k] = JSON.stringify(it.data); AS.rev[k] = it.rev; }
+  const items = parsed(AS.base);
+  for (const [k, j] of Object.entries(mine)) if (j === null) delete items[k]; else items[k] = JSON.parse(j);
+  adopt(items); asSave();
+}
+const change = (k, j) => { const i = k.indexOf(':'); return { kind: k.slice(0, i), id: k.slice(i + 1), rev: AS.rev[k] || 0, ...(j === null ? { deleted: true } : { data: JSON.parse(j) }) }; };
+function aAnswer(res, sent) { // what the server did with what we sent, and what other devices changed; true when S changed
+  const items = parsed(itemsOf(S)); let changed = false;
+  for (const a of res.applied) { const k = `${a.kind}:${a.id}`; if (sent[k] === null) { delete AS.base[k]; delete AS.rev[k]; } else { AS.base[k] = sent[k]; AS.rev[k] = a.rev; } }
+  for (const c of res.conflicts) { // the other device's version is shown; ours is kept until the user chooses
+    const k = `${c.kind}:${c.id}`, mine = sent[k];
+    if (!c.server) { delete AS.base[k]; AS.rev[k] = 0; continue; } // gone from the server: sent again as new
+    AS.rev[k] = c.server.rev; changed = true;
+    if (c.server.deleted) { delete AS.base[k]; delete items[k]; } else { AS.base[k] = JSON.stringify(c.server.data); items[k] = c.server.data; }
+    if (mine !== (AS.base[k] ?? null)) AP.conflicts.push({ k, mine, theirs: AS.base[k] ?? null });
+  }
+  for (const r of res.rejected) { // refused by a rule on the server: back to the last synced version
+    const k = `${r.kind}:${r.id}`; changed = true;
+    if (k in AS.base) items[k] = JSON.parse(AS.base[k]); else delete items[k];
+    toast(r.reason === 'active_limit' ? 'Not saved: at most 3 active projects' : `Not saved: ${r.reason}`, 6000);
+  }
+  const pending = unsent();
+  for (const c of res.changes) { // an object also changed here is left alone; sending it reports the conflict
+    const k = `${c.kind}:${c.id}`; if (k in pending && !(k in sent && AS.base[k] === sent[k])) continue;
+    changed = true; AS.rev[k] = c.rev;
+    if (c.deleted) { delete AS.base[k]; delete items[k]; } else { AS.base[k] = JSON.stringify(c.data); items[k] = c.data; }
+  }
+  if (changed) adopt(items);
+  return changed;
+}
+async function aSync() {
+  if (!API) return;
+  if (AP.busy) { AP.again = true; return; }
+  AP.busy = true; clearTimeout(AP.timer);
+  try {
+    let changed = false;
+    if (!AS) { await aLoad(); changed = true; }
+    const sent = unsent(), keys = Object.keys(sent);
+    if (keys.length) apill('saving');
+    for (let i = 0; i === 0 || i < keys.length; i += 200) {
+      const part = keys.slice(i, i + 200), was = AS.cursor;
+      const res = await aFetch('/sync', { cursor: AS.cursor, changes: part.map(k => change(k, sent[k])) });
+      changed = aAnswer(res, Object.fromEntries(part.map(k => [k, sent[k]]))) || changed;
+      AS.cursor = res.cursor; asSave();
+      if (res.full || res.cursor < was) { await aLoad(); changed = true; break; } // far behind, or the database was restored
+    }
+    if (changed) { const f = document.activeElement; if (f && f.closest('#app') && f.matches('input, textarea, select')) AP.stale = true; else render(); }
+    apill(AP.conflicts.length ? 'conflict' : 'saved');
+  } catch (e) { AP.lastError = e.message; apill(e.why || 'error'); }
+  finally { AP.busy = false; if (AP.again) { AP.again = false; aSync(); } }
+}
+function aQueue() { clearTimeout(AP.timer); AP.timer = setTimeout(aSync, 1500); if (AP.state !== 'offline' && AP.state !== 'signin') apill('saving'); }
+function aResolve() {
+  const items = parsed(itemsOf(S));
+  for (const c of AP.conflicts.splice(0)) {
+    const o = JSON.parse(c.mine ?? c.theirs ?? '{}'), what = o.what || o.text || o.title || o.name || c.k;
+    if (confirm(`"${what}" was also changed on another device.\n\nOK = keep this device's version${c.mine === null ? ' (deleted)' : ''}.\nCancel = keep the other device's version${c.theirs === null ? ' (deleted)' : ''}.`))
+      { if (c.mine === null) delete items[c.k]; else items[c.k] = JSON.parse(c.mine); }
+  }
+  adopt(items); render(); aSync();
+}
 
-
-const id = () => S.seq++;
+// unique on every device: milliseconds × 1000 plus a random part, always growing here; a safe integer until the year 2255
+let lastId = 0;
+const id = () => (lastId = Math.max(Date.now() * 1000 + Math.floor(Math.random() * 1000), lastId + 1));
 
 // ---------- dates ----------
 const pad = n => String(n).padStart(2, '0');
 const d2s = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const s2d = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d || 1); };
 const addDays = (s, n) => { const d = s2d(s); d.setDate(d.getDate() + n); return d2s(d); };
-const TODAY = d2s(new Date());
+let TODAY = d2s(new Date());
+function newDay() { // a page left open (or an app in the phone's background) moves on at midnight
+  const t = d2s(new Date()); if (t === TODAY) return;
+  if (U.date === TODAY) U.date = t;
+  TODAY = t; render();
+}
 function isoWeek(s) { const d = s2d(s); d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7); const w1 = new Date(d.getFullYear(), 0, 4);
   return 1 + Math.round(((d - w1) / 864e5 - 3 + (w1.getDay() + 6) % 7) / 7); }
 const dayOfYear = s => Math.round((s2d(s) - new Date(s2d(s).getFullYear(), 0, 1)) / 864e5) + 1;
@@ -319,7 +452,9 @@ const acode = a => { const t = task(a.taskId); return t ? `${tcode(t)}.${a.n}` :
 const day = s => S.days[s] || (S.days[s] = { tasks: [], acts: [], elephant: '', areaMin: {} });
 const eyes = g => ({ draft: '○○', committed: '●○', achieved: '●●', dropped: '✕' }[g.mark]);
 const dueTag = (date, ref) => !date ? '' : date < ref ? `<span class="late">late ${esc(date.slice(5))}</span>` : date === ref ? '<span class="due">due today</span>' : `<span class="m">${esc(date.slice(5))}</span>`;
-const linkTag = l => l ? ` <a href="${esc(/^[a-z]+:/i.test(l) ? l : 'file:///' + l)}" target="_blank" rel="noopener" title="${esc(l)}">🔗</a>` : '';
+const linkTag = l => { // only web, mail, phone and file links: a "javascript:" link would run code
+  const href = l && (/^[a-z][a-z0-9+.-]+:/i.test(l) ? l : 'file:///' + l); // "C:\…" is a drive, not a scheme
+  return href && /^(https?|mailto|tel|file):/i.test(href) ? ` <a href="${esc(href)}" target="_blank" rel="noopener" title="${esc(l)}">🔗</a>` : ''; };
 const whoTag = w => w && w !== 'me' ? ` <span class="m">· ${esc(w)}</span>` : '';
 function toast(msg, ms = 2600) { document.querySelectorAll('.toast').forEach(x => x.remove()); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.title = 'click to close'; t.onclick = () => t.remove(); document.body.append(t); setTimeout(() => t.remove(), ms); }
 const openTask = t => t.status === 'open';
@@ -605,6 +740,8 @@ V.settings = () => {
     <div class="row"><span>Time ledger (Lyubishchev) <span class="m">(plan vs actual, lost time, 📊 Balance, estimating accuracy)</span></span><input type="checkbox" data-c="setting" data-k="ledger" ${st.ledger ? 'checked' : ''}></div>
     <div class="row"><span>Covey matrix <span class="m">(important × urgent quadrants, 🧭 Matrix, Q2 share)</span></span><input type="checkbox" data-c="setting" data-k="covey" ${st.covey ? 'checked' : ''}></div>
     ${st.covey ? `<div class="row"><span>"Urgent" means due within</span>${sel('urgentDays', [1, 2, 3, 5, 7, 14].map(d => [d, d + (d === 1 ? ' day' : ' days')]), st.urgentDays)}</div>` : ''}</div>
+  ${API ? `<div class="card"><h3>🔄 Shared database <span class="m" style="text-transform:none;letter-spacing:0">all your signed-in devices</span></h3>
+    <div class="row"><span>${pill('apill')}</span><button data-a="apill">sync now</button></div></div>` : `
   <div class="card"><h3>📁 Save to a file <span class="m" style="text-transform:none;letter-spacing:0">Chrome or Edge on a computer · no sign-in</span></h3>
     ${!FS.ok ? '<div class="empty">This browser cannot save to a file. Use Chrome or Edge on a computer, or Google Drive below.</div>'
       : FS.handle ? `<div class="row"><span>File <b>${esc(FS.handle.name)}</b> · ${pill('fpill')}</span><span><button data-a="fpill">sync now</button> <button data-a="fileStop">stop using</button></span></div>`
@@ -613,7 +750,7 @@ V.settings = () => {
     ${SC.connected ? `<div class="row"><span>Connected · ${pill('cloud')}</span><span><button data-a="cloud">sync now</button> <button data-a="gDisconnect">disconnect</button></span></div>`
       : `<div class="row"><span class="m">${clientId() ? 'Saves pusis-data.json in your Google Drive.' : 'Needs a Google Client ID (see GOOGLE_SETUP.md).'}</span><button class="pri" data-a="gConnectBtn" ${canGoogle() ? '' : 'disabled title="Needs the web version (https) and a Client ID"'}>connect</button></div>`}
     <details style="margin-top:6px"><summary class="m">Advanced: use your own Google Client ID</summary>
-      <input style="margin-top:6px" data-c="clientId" value="${esc(SC.clientId || '')}" placeholder="….apps.googleusercontent.com${BUILT_IN_CLIENT_ID ? ' (empty = built-in)' : ''}"></details></div>
+      <input style="margin-top:6px" data-c="clientId" value="${esc(SC.clientId || '')}" placeholder="….apps.googleusercontent.com${BUILT_IN_CLIENT_ID ? ' (empty = built-in)' : ''}"></details></div>`}
   <div class="card"><h3>Backup and data</h3>
     <div class="row"><span>Backup file (JSON)</span><span><button data-a="exportJson">export</button> <button data-a="importJson">import…</button></span></div>
     <div class="row"><span>Demo data <span class="m">replaces your data</span></span><button data-a="loadDemo">load demo</button></div>
@@ -840,6 +977,7 @@ const A = {
   go: o => { U.view = o.v; U.step = 1; render(); },
   cloud: () => !SC.connected || G.state === 'connect' ? gConnect() : gSync(),
   fpill: () => fSync(true),
+  apill: () => AP.state === 'signin' ? location.reload() : AP.conflicts.length ? aResolve() : aSync(),
   menu: () => { U.view = 'settings'; render(); },
   lostDel: o => { day(o.date).lost.splice(+o.i, 1); render(); },
   balKind: o => { U.balKind = o.k; render(); },
@@ -1057,11 +1195,26 @@ function selfTest() {
   console.assert(periodRange('month', '2026-02-10')[1] === '2026-02-28' && periodRange('week', '2026-11-04')[0] === '2026-11-02', 'periodRange');
   console.assert(quad({ important: true, deadline: '2026-11-04' }, '2026-11-02') === 1 && quad({ important: true, deadline: '2026-12-01' }, '2026-11-02') === 2
     && quad({ deadline: '2026-11-01' }, '2026-11-02') === 3 && quad({}, '2026-11-02') === 4, 'quad');
+  const a = id(), b = id();
+  console.assert(b > a && Number.isSafeInteger(b) && b > 1e15, 'ids grow and stay safe integers');
+  console.assert(linkTag('javascript:alert(1)') === '' && linkTag('data:text/html,x') === '' && /href="https:\/\/x\.test"/.test(linkTag('https://x.test'))
+    && /file:\/\/\/C:/.test(linkTag('C:\\a.txt')) && /mailto:/.test(linkTag('mailto:a@b.test')), 'linkTag keeps only safe links');
+  const D = demo(), round = itemsOf(stateOf(parsed(itemsOf(D))));
+  console.assert(JSON.stringify(round) === JSON.stringify(itemsOf(D)), 'state survives the trip to the database');
+  const bad = stateOf({ 'task:1"><b>': { what: 'x' }, 'day:x"': {}, 'area:12': { name: 'x' }, 'task:5': { id: '"><b>', what: 'y' } });
+  console.assert(bad.tasks.length === 1 && bad.tasks[0].id === 5 && !Object.keys(bad.days).length && bad.areas.length === 5, 'unknown keys are left out, ids come from keys');
   console.log('selftest done');
 }
 if (location.hash === '#test') selfTest();
-cloud(SC.connected ? 'connect' : '');
-if (FS.ok) idb('get').then(async h => { if (!h || !h.queryPermission) return; FS.handle = h; fpill('allow'); if (await fAllowed(false)) fSync(false); });
+if (API) { apill(''); } else {
+  cloud(SC.connected ? 'connect' : '');
+  if (FS.ok) idb('get').then(async h => { if (!h || !h.queryPermission) return; FS.handle = h; fpill('allow'); if (await fAllowed(false)) fSync(false); });
+}
 render();
+if (API) aSync();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { newDay(); aSync(); } });
+document.addEventListener('focusout', () => setTimeout(() => { if (AP.stale && !document.activeElement?.matches('input, textarea, select')) { AP.stale = false; render(); } }));
+addEventListener('online', () => aSync());
+setInterval(() => { newDay(); if (!document.hidden) aSync(); }, 60000);
 </script>
 </body></html>
