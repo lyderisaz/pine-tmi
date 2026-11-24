@@ -1,58 +1,128 @@
-# Pušis 🌲 — a pine-tree planner
+# Pušis 🌲 — A pine-tree planner
 
-**Pušis** (Lithuanian for *pine*) is a small personal planner built on the "pine tree" planning method of the classic Time Manager system:
+**Pušis** (Lithuanian for *pine*) helps you turn a busy life into a clear, connected plan. It is a privacy-friendly browser app inspired by the classic **Time Manager** system.
 
-| Tree | Meaning |
-|---|---|
-| Trunk | you and your **goals** (personal and work) |
-| Branches | up to 9 **key areas** of your life and work |
-| Twigs | the **tasks** in each key area |
-| Needles | the **activities** that complete a task: what, who, by when |
+![Today in Pušis: a time column with a weekly rhythm, today's tasks, activities and a Don't forget list](docs/images/today.png)
 
-Every needle is attached to the tree, so you keep the overview. Each evening you plan tomorrow's available time around your goals.
-
-> Status: **phase 0 prototype**. It works, but expect changes.
+> **Status: phase 0 prototype** — the app works, but expect changes.
 
 ## Try it
-**Live: https://pine-tmi.inventship.workers.dev/** (Cloudflare Workers static assets; deploy with `npx wrangler deploy`). `index.html` is the current app; `prototype/` keeps the versioned history (v2–v15). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⚙ → load demo** to see an example.
 
-## What it does
-- **Goals**: 6 personal and 6 work goals, each with up to 3 milestones and a deadline. A goal moves from draft ○○ to signed ●○ to achieved ●●. The goal check uses five rules: clear, realistic, challenging, time-limited, worthwhile.
-- **Projects** (v13, v14): after Key areas in the menu. All projects are shown by status: active (at most 3 at a time), planned (not started), maintained, paused, closed; a 4th project starts as planned. Each shows its key area, goal, way to money, next step and open tasks. A task can belong to a project.
-- **Weekly rhythm** (v13, in ⚙ Settings): booked blocks that repeat on chosen weekdays (sleep, sport, sales hours). They appear on Today and in Plan tomorrow, count in free time and in the time ledger; click one to change or skip it for a single day. Editing a rhythm keeps past days as they were. A rhythm block is either busy (sleep, sport, lunch) or, since v15, time for one key area's tasks: that time stays free, tasks are planned inside it, and Plan tomorrow names it next to each start time.
-- **Key areas**: one screen with three panes (key areas | task sheet | activity sheet). Codes such as 1.1 and 1.1.3, ! for important tasks, ongoing (∞) vs temporary tasks, an ideas bank, and an optional link on each item.
-- **Today**: the elephant of the day, a time column from 08:00 to 21:00 for booked and planned time, Tasks / Activities / Calls & e-mails lists, a Don't forget list, and minutes per key area. Items due today appear here by themselves.
-- **Plan tomorrow**: an evening routine of 7 short steps (close today, booked slots, elephant bite, tasks, activities, calls and e-mails, don't forget).
-- **INFO**: a **Notes** inbox (write notes of several lines, then sort each one to a task, an idea, Don't forget or Reference), **People** (phone and e-mail directory with categories; names are offered as "who") and **Reference** (kept information by key area or task, with search).
-- **📊 Time ledger** (on by default; switch off in ⚙ → Planning): the Lyubishchev way of looking back. You get plan vs actual minutes per key area, lost time and why, how long finished tasks really took, and a **Balance** view (week, month, year) with your estimating factor.
-- **🧭 Covey matrix** (on by default; switch off in ⚙ → Planning): every open task is sorted into important × urgent quadrants automatically. *Important* means ! or a signed goal; *urgent* means due within N days or late. You get a Matrix view, Q1–Q4 tags, a Q2 hint in Plan tomorrow, and the Q2 share of planned time.
-- **? Help**: *Using Pušis* (opens at the page you are on) and *The method* (pine tree, overview, results, goals, key areas, tasks, elephant technique, planning rhythm, the Lyubishchev time ledger, Covey's matrix).
-- **⚙ Settings**: day start and end, weekly review day, Flapsi meter on/off, sync (📁 file / ☁ Google Drive), backup. Dates are always shown as YYYY-MM-DD and times as 24 h.
-- **Capture**: press **+** or **N** to note something. It goes to the Notes inbox, Don't forget, Ideas, a task, or a call or e-mail.
+**[Open the live app](https://pine-tmi.inventship.workers.dev/)** — no account is required.
+
+By default, your plans stay in your browser. Export a backup from **⚙ → Backup** regularly, especially while the app is in prototype status.
+
+## The pine-tree method
+
+Pušis keeps everyday work connected to your goals:
+
+| Part | Planning meaning |
+|---|---|
+| 🌳 Trunk | Your personal and work goals |
+| 🌿 Branches | Up to nine key areas of life and work |
+| 🌱 Twigs | The tasks inside each key area |
+| 🌲 Needles | Concrete activities: what, who, and by when |
+
+Every activity remains attached to the larger plan, so the important work stays visible.
+
+## What you can do
+
+- Set personal and work goals with milestones and deadlines
+- Organize work in key areas and projects: at most three projects are active at a time, while planned, maintained, paused and closed ones stay in view
+- Plan a day using the elephant technique and `Plan tomorrow`
+- Capture tasks, ideas, calls, e-mails, notes, and people
+- Repeat weekly commitments with the weekly rhythm: busy time (sleep, sport, lunch) or time kept free for one key area's tasks
+- Review planned versus actual time with the optional time ledger
+- Prioritize open tasks with the optional Covey matrix
+- Save locally, export a backup, save to a file, or sync with your Google Drive
+
+## A look inside
+
+| Key areas: area, task sheet and activity sheet side by side | Plan tomorrow: a task placed inside time kept for its key area |
+|---|---|
+| ![Key areas with the task sheet and the activity sheet of the selected task](docs/images/key-areas.png) | ![Plan tomorrow with tasks to pick and tomorrow's time column](docs/images/plan-tomorrow.png) |
+| **Projects: at most three active, the rest in view** | **On a phone** |
+| ![Projects grouped by status, each with its way to money and next step](docs/images/projects.png) | <img src="docs/images/phone.png" alt="Today on a phone" width="260"> |
+
+The pictures use the built-in demo data (**⚙ → load demo**). `node docs/screenshots.js <playwright module path> <absolute path to index.html>` makes them again.
+
+## Why try Pušis?
+
+- **Keeps context:** goals, projects, tasks, activities, and notes belong to one connected overview
+- **Works in the browser:** plain HTML and JavaScript with no build step
+- **Keeps control of data:** local storage is the default, and no data is sent unless you choose an integration
+- **Supports real planning:** tomorrow's plan is built around goals, available time, recurring commitments, and the most important task
+- **Respects your time:** date and time formats are straightforward, and optional planning lenses can be switched off
+
+## How to use it
+
+1. Add your key areas and goals.
+2. Add tasks on each key area's task sheet, and projects in **Projects**.
+3. Split a task into concrete activities on its activity sheet (**Key areas**), and set your weekly rhythm in **⚙ Settings**.
+4. Each evening, pick tomorrow's tasks and times in **Plan tomorrow**; work from **Today**.
+5. Record what was completed and review the time ledger and balance views.
+6. Export a backup from **Settings** to protect your plans.
+
+Open **? Help** in the app for contextual instructions and a fuller explanation of the method.
 
 ## Your data
-By default your data stays **in your browser only** (localStorage), and nothing is sent anywhere. Use **⚙ → Backup → export** regularly. If you clear the browser data, you lose your plans.
 
-**Optional: save to a file (simplest).** In Chrome or Edge on a computer: **⚙ → 📁 new file…**, and put it in your **Google Drive for desktop** folder (or OneDrive, Dropbox…). Pušis then writes every change to that file, and the folder app syncs it. There is no sign-in. On another computer, use **⚙ → 📁 open file…**. If the file was changed elsewhere, you choose which copy to keep.
+By default, Pušis stores data in browser `localStorage`. It sends nothing to a server.
 
-**Optional: Google Drive sync.** Pušis can save your data as `pusis-data.json` in *your own* Google Drive and load it on another device. Click **☁ Drive** to connect (the live app has a built-in Client ID; Google lets only the owner's test users in while the project is in testing mode). It can see only the files it creates. Nothing is overwritten without asking when the Drive copy was changed elsewhere. Setup: [GOOGLE_SETUP.md](GOOGLE_SETUP.md).
+- **Local browser:** fastest setup; clearing browser data can remove your plans
+- **Exported backup:** use **⚙ → Backup → export** for a portable copy
+- **Synced file:** Chrome or Edge can save to a local file, for example inside a synced Drive, OneDrive, or Dropbox folder
+- **Google Drive:** optional sync stores `pusis-data.json` in your own Google Drive
+- **Shared database:** a private copy can use a server when it includes `<meta name="pusis-api" content="/api">`
 
-**Optional: a shared database (v12).** A private copy of Pušis can keep its data on a server you run. Add `<meta name="pusis-api" content="/api">` to the page head; Pušis then loads its data from `GET /api/state` and sends only what changed to `POST /api/sync`, with a revision for each object. Nothing is overwritten without asking: when two devices change the same thing, the 🔄 pill shows a conflict and you choose which version to keep. Without the tag (as on the live demo) nothing is sent anywhere.
+Google Drive setup is documented in [GOOGLE_SETUP.md](GOOGLE_SETUP.md). No account or integration is needed to try the app.
 
 ## Development
-- One self-contained HTML file with plain JavaScript and no build step. Older versions are kept in `prototype/` for comparison.
-- Built-in self-check: open the page with `#test` at the end of the address and look at the browser console.
-- Tests (need [Playwright](https://playwright.dev)):
-  ```
-  node prototype/proto_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html> <screenshot folder>
-  node prototype/sync_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html>
-  node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
-  node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
-  ```
-  `sync_test_v15.js`, `drive_test_v7.js` and `file_test_v7.js` check syncing against a fake server, a fake Google and a fake file, so no account or real file is needed.
+
+The current app is a self-contained HTML file at [`index.html`](index.html). There is no build step. Earlier versions are kept in [`prototype/`](prototype/) for comparison.
+
+Built-in self-check: open the app with `#test` at the end of the address and inspect the browser console.
+
+Test scripts require [Playwright](https://playwright.dev):
+
+```bash
+node prototype/proto_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html> <screenshot folder>
+node prototype/sync_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html>
+node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
+node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
+```
+
+The sync, Drive, and file tests use fake services, so no real account or file is needed.
+
+To run the app locally:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/`.
+
+Deploy the static app with:
+
+```bash
+npx wrangler deploy
+```
+
+## Contributing
+
+Feedback and focused bug reports are welcome. Please include browser and device details, reproduction steps, and a screenshot or short recording when possible.
+
+For code changes:
+
+1. Create a branch.
+2. Keep changes simple and compatible with the plain-JavaScript app.
+3. Run the relevant Playwright test script.
+4. Open a pull request describing the problem, solution, and test coverage.
 
 ## Credits
-The method comes from the **Time Manager®** system created in 1975 by Claus Møller and Time Manager International A/S (TMI). This project is independent and is **not affiliated with or endorsed by TMI**. "Time Manager" is a trademark of its owner.
+
+The method comes from the **Time Manager®** system created in 1975 by Claus Møller and Time Manager International A/S (TMI). This project is independent and is not affiliated with or endorsed by TMI. Its implementation and documentation are written specifically for Pušis.
 
 ## Licence
+
 [GPL-3.0](LICENSE)
