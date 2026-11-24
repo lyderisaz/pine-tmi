@@ -14,12 +14,12 @@ Every needle is attached to the tree, so you keep the overview. Each evening you
 > Status: **phase 0 prototype**. It works, but expect changes.
 
 ## Try it
-**Live: https://pine-tmi.inventship.workers.dev/** (Cloudflare Workers static assets; deploy with `npx wrangler deploy`). `index.html` is the current app; `prototype/` keeps the versioned history (v2–v14). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⚙ → load demo** to see an example.
+**Live: https://pine-tmi.inventship.workers.dev/** (Cloudflare Workers static assets; deploy with `npx wrangler deploy`). `index.html` is the current app; `prototype/` keeps the versioned history (v2–v15). You can also open `index.html` from a local copy in a modern browser. There is nothing to install. Use **⚙ → load demo** to see an example.
 
 ## What it does
 - **Goals**: 6 personal and 6 work goals, each with up to 3 milestones and a deadline. A goal moves from draft ○○ to signed ●○ to achieved ●●. The goal check uses five rules: clear, realistic, challenging, time-limited, worthwhile.
 - **Projects** (v13, v14): after Key areas in the menu. All projects are shown by status: active (at most 3 at a time), planned (not started), maintained, paused, closed; a 4th project starts as planned. Each shows its key area, goal, way to money, next step and open tasks. A task can belong to a project.
-- **Weekly rhythm** (v13, in ⚙ Settings): booked blocks that repeat on chosen weekdays (sleep, sport, sales hours). They appear on Today and in Plan tomorrow, count in free time and in the time ledger; click one to change or skip it for a single day. Editing a rhythm keeps past days as they were.
+- **Weekly rhythm** (v13, in ⚙ Settings): booked blocks that repeat on chosen weekdays (sleep, sport, sales hours). They appear on Today and in Plan tomorrow, count in free time and in the time ledger; click one to change or skip it for a single day. Editing a rhythm keeps past days as they were. A rhythm block is either busy (sleep, sport, lunch) or, since v15, time for one key area's tasks: that time stays free, tasks are planned inside it, and Plan tomorrow names it next to each start time.
 - **Key areas**: one screen with three panes (key areas | task sheet | activity sheet). Codes such as 1.1 and 1.1.3, ! for important tasks, ongoing (∞) vs temporary tasks, an ideas bank, and an optional link on each item.
 - **Today**: the elephant of the day, a time column from 08:00 to 21:00 for booked and planned time, Tasks / Activities / Calls & e-mails lists, a Don't forget list, and minutes per key area. Items due today appear here by themselves.
 - **Plan tomorrow**: an evening routine of 7 short steps (close today, booked slots, elephant bite, tasks, activities, calls and e-mails, don't forget).
@@ -44,12 +44,12 @@ By default your data stays **in your browser only** (localStorage), and nothing 
 - Built-in self-check: open the page with `#test` at the end of the address and look at the browser console.
 - Tests (need [Playwright](https://playwright.dev)):
   ```
-  node prototype/proto_test_v14.js <playwright module path> <absolute path to pusis_proto_v14.html> <screenshot folder>
-  node prototype/sync_test_v14.js <playwright module path> <absolute path to pusis_proto_v14.html>
-  node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v14.html>
-  node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v14.html>
+  node prototype/proto_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html> <screenshot folder>
+  node prototype/sync_test_v15.js <playwright module path> <absolute path to pusis_proto_v15.html>
+  node prototype/drive_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
+  node prototype/file_test_v7.js <playwright module path> <absolute path to pusis_proto_v15.html>
   ```
-  `sync_test_v14.js`, `drive_test_v7.js` and `file_test_v7.js` check syncing against a fake server, a fake Google and a fake file, so no account or real file is needed.
+  `sync_test_v15.js`, `drive_test_v7.js` and `file_test_v7.js` check syncing against a fake server, a fake Google and a fake file, so no account or real file is needed.
 
 ## Credits
 The method comes from the **Time Manager®** system created in 1975 by Claus Møller and Time Manager International A/S (TMI). This project is independent and is **not affiliated with or endorsed by TMI**. "Time Manager" is a trademark of its owner.
